@@ -46,8 +46,20 @@ test('menu lists tracks with lock state', async ({ page }) => {
   await page.waitForFunction(() => document.querySelectorAll('.track-tile').length > 0);
   const tiles = await page.evaluate(() =>
     [...document.querySelectorAll('.track-tile')].map((e) => e.classList.contains('locked')));
-  expect(tiles.length).toBe(3);
-  expect(tiles.filter(Boolean).length).toBe(2); // tracks 1 & 2 locked
+  expect(tiles.length).toBe(4); // 3 main + 1 bonus
+  // Main tracks 1 & 2 locked; the bonus highway (gated:false) is open from the start.
+  expect(tiles.filter(Boolean).length).toBe(2);
+});
+
+test('bonus track is unlocked from the start', async ({ page }) => {
+  await loadMenu(page);
+  await page.evaluate(() => window.__SAVE.reset()); // fresh save
+  const r = await page.evaluate(() => ({
+    bonus: window.__SAVE.isUnlocked(3),
+    mainTwo: window.__SAVE.isUnlocked(1),
+  }));
+  expect(r.bonus).toBe(true);   // bonus highway available now (gated:false)
+  expect(r.mainTwo).toBe(false); // main track 2 still gated by progression
 });
 
 test('selecting a track switches it live', async ({ page }) => {
@@ -57,7 +69,7 @@ test('selecting a track switches it live', async ({ page }) => {
   await page.evaluate(() => window.__selectTrack(1));
   const after = await state(page);
   expect(before.track).toBe('springs');
-  expect(after.track).toBe('meadow'); // switched in place
+  expect(after.track).toBe('twilight'); // switched in place (track 2 is now twilight)
   expect(after.trackIndex).toBe(1);
 });
 

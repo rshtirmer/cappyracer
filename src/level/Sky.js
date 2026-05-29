@@ -1,9 +1,13 @@
 import * as THREE from 'three';
-import { ENV, COLORS } from '../core/Constants.js';
+import { ENV, COLORS, ENV_PRESETS } from '../core/Constants.js';
+
+/** Tiny seeded RNG (sin-hash) so the sky layout is stable across reloads. */
+function seeded(n) { return ((Math.sin(n * 12.9898) * 43758.5453) % 1 + 1) % 1; }
 
 /**
- * A gradient sky dome (vertical blend from horizon to zenith) plus a handful of
- * soft low-poly clouds that drift slowly. Replaces the flat clear-color sky.
+ * A gradient sky dome (vertical blend from horizon to zenith). Springs/highway
+ * envs add soft low-poly clouds + a warm sun disc; the space env swaps those
+ * for a starfield and a distant planet. Driven entirely by the track theme.
  */
 export class Sky {
   constructor(scene, theme) {
@@ -11,8 +15,10 @@ export class Sky {
     this.theme = theme || {};
     this.t = 0;
     this.buildDome();
-    this.buildSun();
-    this.buildClouds();
+    if (this.theme.starfield) this.buildStars();
+    if (this.theme.planet != null) this.buildPlanet();
+    if (!this.theme.sunless) this.buildSun();
+    if (!this.theme.starfield) this.buildClouds();
   }
 
   buildSun() {
@@ -41,6 +47,62 @@ export class Sky {
     sprite.userData.noPS2 = true;
     this.scene.add(sprite);
     this.sun = sprite;
+  }
+
+  /** A field of bright points on a large sphere — the deep-space backdrop. */
+  buildStars() {
+    const p = ENV_PRESETS.space;
+    const count = p.starCount;
+    const r = p.starRadius;
+    const positions = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      // Even-ish spherical scatter (upper hemisphere biased) from a seeded hash.
+      const u = seeded(i + 1) * 2 - 1;
+      const a = seeded(i + 101) * Math.PI * 2;
+      const s = Math.sqrt(1 - u * u);
+      positions[i * 3] = Math.cos(a) * s * r;
+      positions[i * 3 + 1] = Math.abs(u) * r * 0.9 + 20; // keep stars above the floor
+      positions[i * 3 + 2] = Math.sin(a) * s * r;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    const mat = new THREE.PointsMaterial({
+      color: 0xffffff, size: 2.4, sizeAttenuation: false, fog: false,
+      transparent: true, opacity: 0.95, depthWrite: false,
+    });
+    const stars = new THREE.Points(geo, mat);
+    stars.renderOrder = -1;
+    stars.userData.noPS2 = true;
+    this.scene.add(stars);
+    this.stars = stars;
+  }
+
+  /** A distant glowing planet disc to anchor the space sky. */
+  buildPlanet() {
+    const size = 256;
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    const ctx = c.getContext('2d');
+    const col = new THREE.Color(this.theme.planet);
+    const hex = (m) => Math.round(m * 255);
+    const g = ctx.createRadialGradient(size * 0.42, size * 0.40, size * 0.05, size / 2, size / 2, size / 2);
+    g.addColorStop(0, `rgba(${hex(col.r)},${hex(col.g)},${hex(col.b)},1)`);
+    g.addColorStop(0.55, `rgba(${hex(col.r * 0.7)},${hex(col.g * 0.7)},${hex(col.b * 0.8)},1)`);
+    g.addColorStop(0.92, `rgba(${hex(col.r * 0.25)},${hex(col.g * 0.25)},${hex(col.b * 0.35)},1)`);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+    ctx.fill();
+    const tex = new THREE.CanvasTexture(c);
+    const mat = new THREE.SpriteMaterial({ map: tex, fog: false, depthWrite: false, depthTest: false, transparent: true });
+    const sprite = new THREE.Sprite(mat);
+    sprite.position.set(-260, 150, -420);
+    sprite.scale.setScalar(180);
+    sprite.renderOrder = 0;
+    sprite.userData.noPS2 = true;
+    this.scene.add(sprite);
+    this.planet = sprite;
   }
 
   buildDome() {
@@ -92,7 +154,7 @@ export class Sky {
         }`,
     });
     const dome = new THREE.Mesh(geo, mat);
-    dome.renderOrder = -1;
+    dome.renderOrder = -2;
     dome.userData.noPS2 = true;
     this.scene.add(dome);
     this.dome = dome;
@@ -142,5 +204,6 @@ export class Sky {
     // Drift the whole cloud field slowly for subtle life.
     this.t += delta;
     if (this.clouds) this.clouds.rotation.y = this.t * 0.005;
+    if (this.stars) this.stars.rotation.y = this.t * 0.003;
   }
 }

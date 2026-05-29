@@ -2,6 +2,9 @@ import { eventBus, Events } from '../core/EventBus.js';
 import { formatTime, ordinal } from './HUD.js';
 import { TRACK_DEFS } from '../level/tracks.js';
 import { Save } from '../core/Save.js';
+import { drawTrackPreview } from './trackPreview.js';
+
+const DIFF_CLASS = { Easy: 'easy', Hard: 'hard', Expert: 'expert', Bonus: 'bonus' };
 
 export class Menu {
   constructor() {
@@ -36,10 +39,49 @@ export class Menu {
     TRACK_DEFS.forEach((def, i) => {
       const unlocked = Save.isUnlocked(i);
       const tile = document.createElement('div');
-      tile.className = 'track-tile' + (i === this.selected ? ' selected' : '') + (unlocked ? '' : ' locked');
+      tile.className = 'track-tile'
+        + (i === this.selected ? ' selected' : '')
+        + (unlocked ? '' : ' locked')
+        + (def.bonus ? ' bonus' : '');
+
       const best = Save.bestTime(def.id);
-      const info = !unlocked ? '🔒 Locked' : (best != null ? `Best ${formatTime(best)}` : 'Not raced');
-      tile.innerHTML = `<div class="tname">${i + 1}. ${def.name}</div><div class="tinfo">${info}</div>`;
+      const info = !unlocked
+        ? '🔒 Locked'
+        : (best != null ? `⭐ Best ${formatTime(best)}` : 'Not raced yet');
+      const diffClass = DIFF_CLASS[def.difficulty] || 'easy';
+
+      // Preview canvas (rendered top-down map of the track).
+      const canvas = document.createElement('canvas');
+      canvas.className = 'tprev';
+      canvas.width = 300;
+      canvas.height = 168;
+
+      const body = document.createElement('div');
+      body.className = 'tbody';
+      body.innerHTML =
+        `<div class="trow">` +
+          `<span class="tname">${i + 1}. ${def.name}</span>` +
+          `<span class="badge ${diffClass}">${def.difficulty}</span>` +
+        `</div>` +
+        `<div class="tinfo">${info}</div>`;
+
+      tile.appendChild(canvas);
+      if (def.bonus) {
+        const ribbon = document.createElement('div');
+        ribbon.className = 'ribbon';
+        ribbon.textContent = 'BONUS';
+        tile.appendChild(ribbon);
+      }
+      tile.appendChild(body);
+      if (!unlocked) {
+        const veil = document.createElement('div');
+        veil.className = 'lock-veil';
+        veil.textContent = '🔒';
+        tile.appendChild(veil);
+      }
+
+      drawTrackPreview(canvas, def);
+
       if (unlocked) {
         tile.addEventListener('click', () => {
           this.selected = i;
@@ -49,6 +91,13 @@ export class Menu {
       }
       this.trackSelectEl.appendChild(tile);
     });
+
+    this.updatePlayLabel();
+  }
+
+  updatePlayLabel() {
+    const def = TRACK_DEFS[this.selected];
+    if (def && this.playBtn) this.playBtn.textContent = `▶  RACE · ${def.name}`;
   }
 
   showStart() {

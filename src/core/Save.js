@@ -1,7 +1,15 @@
 /**
- * localStorage-backed progress: how many tracks are unlocked and the best time
- * per track. Fails safe (in-memory) if storage is unavailable.
+ * localStorage-backed progress: how many main tracks are unlocked and the best
+ * time per track. Fails safe (in-memory) if storage is unavailable.
+ *
+ * Unlock model:
+ *   - Main tracks unlock linearly (beat one to open the next), capped at the
+ *     number of main (non-bonus) tracks.
+ *   - A bonus track is unlocked when its `gated` flag is false (available now)
+ *     OR — once gated — when every main track has been completed.
  */
+import { TRACK_DEFS, MAIN_TRACKS, MAIN_TRACK_COUNT } from '../level/tracks.js';
+
 const KEY = 'cappyracer.save.v1';
 
 function load() {
@@ -19,14 +27,23 @@ function persist() {
 }
 
 export const Save = {
-  /** Number of tracks unlocked (indices 0..unlocked-1 are playable). */
+  /** Number of MAIN tracks unlocked (indices 0..unlocked-1 are playable). */
   unlockedCount() { return data.unlocked; },
 
-  isUnlocked(index) { return index < data.unlocked; },
+  /** Has every main track been completed (a best time recorded)? */
+  allMainComplete() { return MAIN_TRACKS.every((d) => data.best[d.id] != null); },
 
-  /** Unlock up to `count` tracks (never locks back). */
+  isUnlocked(index) {
+    const def = TRACK_DEFS[index];
+    if (!def) return false;
+    if (def.bonus) return def.gated ? Save.allMainComplete() : true;
+    return index < data.unlocked;
+  },
+
+  /** Unlock up to `count` main tracks (never locks back; capped at main count). */
   unlockUpTo(count) {
-    if (count > data.unlocked) { data.unlocked = count; persist(); }
+    const c = Math.min(count, MAIN_TRACK_COUNT);
+    if (c > data.unlocked) { data.unlocked = c; persist(); }
   },
 
   bestTime(trackId) { return data.best[trackId] ?? null; },

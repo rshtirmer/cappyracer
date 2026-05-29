@@ -40,7 +40,7 @@ export class HUD {
   }
 
   update(state) {
-    const total = RACE.LAPS;
+    const total = state.totalLaps || RACE.LAPS;
     const lap = Math.min(state.lap + (state.finished ? 0 : 1), total);
     const offTrack = !state.onTrack
       ? ` <span style="color:#ffd54a">OFF-TRACK</span>`

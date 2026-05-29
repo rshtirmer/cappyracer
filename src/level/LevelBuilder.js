@@ -1,16 +1,19 @@
 import * as THREE from 'three';
-import { LEVEL, COLORS, ENV, PS2 } from '../core/Constants.js';
+import { LEVEL, ENV, ENV_PRESETS, PS2 } from '../core/Constants.js';
 import { makeGrassTexture } from './Textures.js';
 
 /**
- * Builds the static environment: a big grass plane, lighting (hemisphere bounce
- * + a shadow-casting sun), and fog. The sky dome, scenery, and the race circuit
- * are built by Sky / Scenery / Track (added by Game).
+ * Builds the static environment: the ground plane, lighting (hemisphere bounce
+ * + a shadow-casting key light), and fog. Lighting + ground material adapt to
+ * the track's `env` ('springs' = warm sun, 'space' = cool dim void, 'highway' =
+ * bright clear day). The sky dome, scenery, and circuit are built elsewhere.
  */
 export class LevelBuilder {
   constructor(scene, theme) {
     this.scene = scene;
     this.theme = theme || {};
+    this.env = this.theme.env || 'springs';
+    this.preset = ENV_PRESETS[this.env] || null;
     this.buildGround();
     this.buildLighting();
     this.buildFog();
@@ -18,15 +21,23 @@ export class LevelBuilder {
 
   buildGround() {
     const geometry = new THREE.PlaneGeometry(LEVEL.GROUND_SIZE, LEVEL.GROUND_SIZE);
-    const grass = makeGrassTexture();
-    grass.repeat.set(PS2.GRASS_REPEAT, PS2.GRASS_REPEAT);
-    // Push the ground back in the depth buffer so the road/curbs never z-fight
-    // with it (which showed up as grass flickering through the track).
-    // theme.ground tints the grass per track (white = unchanged).
-    const material = new THREE.MeshLambertMaterial({
-      map: grass, color: this.theme.ground ?? 0xffffff,
-      polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1,
-    });
+    let material;
+    if (this.env === 'space') {
+      // Smooth dark void floor (no grass) with a faint self-glow so karts read.
+      material = new THREE.MeshLambertMaterial({
+        color: this.theme.ground ?? 0x161229,
+        emissive: 0x0a0820, emissiveIntensity: 0.4,
+        polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1,
+      });
+    } else {
+      // Grass (also roadside verge for the highway). theme.ground tints it.
+      const grass = makeGrassTexture();
+      grass.repeat.set(PS2.GRASS_REPEAT, PS2.GRASS_REPEAT);
+      material = new THREE.MeshLambertMaterial({
+        map: grass, color: this.theme.ground ?? 0xffffff,
+        polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1,
+      });
+    }
     this.ground = new THREE.Mesh(geometry, material);
     this.ground.rotation.x = -Math.PI / 2;
     this.ground.receiveShadow = true;
@@ -35,13 +46,21 @@ export class LevelBuilder {
   }
 
   buildLighting() {
-    // Sky/ground bounce for soft, sunny ambient fill.
-    const hemi = new THREE.HemisphereLight(ENV.HEMI_SKY, ENV.HEMI_GROUND, ENV.HEMI_INTENSITY);
+    const p = this.preset;
+    // Sky/ground bounce for soft ambient fill (cool + dim in space, warm in springs).
+    const hemi = new THREE.HemisphereLight(
+      p ? p.hemiSky : ENV.HEMI_SKY,
+      p ? p.hemiGround : ENV.HEMI_GROUND,
+      p ? p.hemiIntensity : ENV.HEMI_INTENSITY
+    );
     this.scene.add(hemi);
 
-    // Warm sun that casts shadows across the track.
-    const sun = new THREE.DirectionalLight(ENV.SUN_COLOR, ENV.SUN_INTENSITY);
-    sun.position.set(...ENV.SUN_POSITION);
+    // Key light that casts shadows across the track.
+    const sun = new THREE.DirectionalLight(
+      p ? p.sunColor : ENV.SUN_COLOR,
+      p ? p.sunIntensity : ENV.SUN_INTENSITY
+    );
+    sun.position.set(...(p ? p.sunPos : ENV.SUN_POSITION));
     sun.castShadow = true;
     sun.shadow.mapSize.set(ENV.SHADOW_MAP, ENV.SHADOW_MAP);
     const a = ENV.SHADOW_AREA;

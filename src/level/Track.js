@@ -39,8 +39,10 @@ export class Track {
   constructor(scene, def) {
     this.scene = scene;
     this.def = def || null;
-    this.roadHalf = TRACK.ROAD_HALF_WIDTH;
-    this.wallHalf = TRACK.WALL_HALF_WIDTH;
+    this.theme = (def && def.theme) || {};
+    // Per-track width override (e.g. the wide multi-lane highway).
+    this.roadHalf = (def && def.roadHalf) || TRACK.ROAD_HALF_WIDTH;
+    this.wallHalf = (def && def.wallHalf) || TRACK.WALL_HALF_WIDTH;
 
     const points = (def && def.controlPoints) || TRACK.CONTROL_POINTS;
     this.curve = new THREE.CatmullRomCurve3(
@@ -147,7 +149,13 @@ export class Track {
     geo.setIndex(indices);
     geo.computeVertexNormals();
     const asphalt = loadAsphaltTexture();
-    const mat = new THREE.MeshLambertMaterial({ map: asphalt, side: THREE.DoubleSide });
+    // theme.roadColor tints the asphalt (dark void road in space, gray highway).
+    const mat = new THREE.MeshLambertMaterial({
+      map: asphalt, color: this.theme.roadColor ?? 0xffffff,
+      emissive: this.theme.roadEmissive ?? 0x000000,
+      emissiveIntensity: this.theme.roadEmissive ? 0.5 : 0,
+      side: THREE.DoubleSide,
+    });
     const road = new THREE.Mesh(geo, mat);
     road.receiveShadow = true;
     road.userData.noPS2 = true; // keep the road surface stable (no wobble gaps at edges)
@@ -155,7 +163,9 @@ export class Track {
   }
 
   buildEdgeLines() {
-    const mat = new THREE.MeshBasicMaterial({ color: COLORS.EDGE_LINE, side: THREE.DoubleSide });
+    // theme.edgeColor lets a track glow its lines (neon cyan in space) — bloom
+    // flares the bright unlit color for that arcade look.
+    const mat = new THREE.MeshBasicMaterial({ color: this.theme.edgeColor ?? COLORS.EDGE_LINE, side: THREE.DoubleSide });
     for (const sign of [1, -1]) {
       const outer = this.roadHalf;
       const inner = this.roadHalf - 0.5;

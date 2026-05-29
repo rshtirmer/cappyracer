@@ -8,16 +8,17 @@ M01 kart · M02 track + laps · M03 beautify · M04 PS2 retro + PSX assets · M0
 ## Phase 1 — Tracks & menu (content backbone)
 - ✅ **M09 — Data-driven tracks.** DONE: `TrackDef` (control points + theme); `Track`/`Sky`/`LevelBuilder` read from it; 2nd track "Misty Meadow" added; active track via `?track=N`. (In-place switching → M10.)
 - ✅ **M10 — Main menu + track select + progressive unlock.** DONE: track-select tiles (locks + best times), `localStorage` save, in-place world rebuild (`buildWorld`/`disposeWorld`/`selectTrack`), podium-finish unlocks next, 3rd track "Twilight Hot Springs".
+- ✅ **M11 — Menu polish + track overhaul + bonus highway.** DONE: professional menu (glass panel, gradient hero, map-preview cards w/ difficulty badges + lock veils + bonus ribbon); distinct lineup (Sunset Springs / harder Twilight / outer-space Cosmic Drift) + a 4th **bonus highway** with weave-through traffic (`Traffic.js`); `ENV_PRESETS`-driven space/highway lighting/sky/scenery; per-track laps + road width; bonus-gate scaffolding in `Save` (`allMainComplete`, currently open). NOTE: Misty Meadow dropped (replaced by space track). Creative-direction track count is now 3 main + 1 bonus.
 
 ## Phase 2 — Characters & story
-- **M11 — Data-driven racer roster.** Support different character models, not just the capybara. Pull GLB models for non-capybara rivals; assign a roster per race. (Capybara stays the player.)
-- **M12 — Story + cutscenes.** Narrative framing — intro, between-track beats, ending. Style per the user's choice (story cards / in-engine cinematics / comic panels).
+- **M12 — Data-driven racer roster.** Support different character models, not just the capybara. Pull GLB models for non-capybara rivals; assign a roster per race. (Capybara stays the player.)
+- **M13 — Story + cutscenes.** Narrative framing — intro, between-track beats, ending. Style per the user's choice (story cards / in-engine cinematics / comic panels).
 
 ## Phase 3 — Production hardening (the demo→prod P0s)
-- **M13 — Loading screen + spinners.** Async-asset loading UX (progress bar / spinner) so nothing pops in; per-track load.
-- **M14 — Audio.** Procedural Web Audio: engine (pitches with speed), drift/boost/shell/pickup SFX, lap ding, finish jingle, music. (`/add-audio`.)
-- **M15 — Touch controls.** On-screen steering + accelerate/drift/item for phones (gameplan required mobile).
-- **M16 — Ship hardening.** Deploy (host + URL), ESLint/Prettier + CI, asset-load error fallback, analytics/error reporting, **asset-license verification** (PSX pack + dashboard/rival GLBs — required before a public/monetized launch).
+- **M14 — Loading screen + spinners.** Async-asset loading UX (progress bar / spinner) so nothing pops in; per-track load.
+- **M15 — Audio.** Procedural Web Audio: engine (pitches with speed), drift/boost/shell/pickup SFX, lap ding, finish jingle, music. (`/add-audio`.)
+- **M16 — Touch controls.** On-screen steering + accelerate/drift/item for phones (gameplan required mobile).
+- **M17 — Ship hardening.** Deploy (host + URL), ESLint/Prettier + CI, asset-load error fallback, analytics/error reporting, **asset-license verification** (PSX pack + dashboard/rival GLBs — required before a public/monetized launch).
 
 ## Cross-cutting / later
 - Results standings screen, best-lap splits, rubber-band AI, smarter AI, more items, mesh/texture compression (Draco/KTX2), sub.games/Play.fun monetization + leaderboard. (See `backlog.md`.)

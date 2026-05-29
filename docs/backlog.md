@@ -50,6 +50,12 @@ When an entry is **rejected**, wrap the title in `~~strikethrough~~` and add a o
 - [ ] Smarter AI — overtaking/blocking, dynamic racing line, rubber-banding so the field stays close. Current AI is lane-following + fixed skill. Source: 2026-05-28 (M05).
   - Rough size: M · Rough value: M
 
+> **Menu + track overhaul (2026-05-29 user request).** → milestone `11-menu-tracks-bonus.md` (implemented). Beautiful menu w/ map previews; track 2 → harder twilight; track 3 → outer space; +bonus highway "no-hesi".
+
+- [ ] **Gate the bonus highway** — flip `gated:true` on the `highway` def so it requires all three main tracks completed first (the wiring + `Save.allMainComplete()` already exist). Left open per the user ("unlock it at first, gate it later"). Source: 2026-05-29. Size: S · Value: S
+- [ ] **Highway "no-hesi" tuning** — traffic only collides with the player (AI passes through); consider per-track racer count (or a time-attack/no-rivals mode for the highway), traffic density/speed tuning, and oncoming lanes for a truer no-hesi feel. Source: 2026-05-29. Size: M · Value: M
+- [ ] **Per-track AI/traffic awareness** — make AI dodge highway traffic (or spawn fewer AI on the bonus track) so the field isn't trivially passed. Source: 2026-05-29. Size: M · Value: S
+
 ## Polish & juice
 
 - [x] Camera micro-adjustment smoothing — chase cam felt wonky on small left/right corrections. → folded into M02 feel pass (smoothed `camYaw` rotation damping). Source: 2026-05-28 playtest.

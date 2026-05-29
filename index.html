@@ -4,88 +4,181 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CappyRacer 🐹🏁</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet" />
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #000; overflow: hidden; font-family: monospace; }
+    :root {
+      --gold: #ffd54a;
+      --ink: #1c1330;
+      --panel: rgba(24, 16, 40, 0.62);
+    }
+    body { background: #000; overflow: hidden; font-family: 'Quicksand', system-ui, sans-serif; }
     canvas { display: block; }
 
     #hud {
-      position: fixed;
-      top: 20px;
-      left: 20px;
-      color: #fff;
-      font-size: 24px;
+      position: fixed; top: 20px; left: 20px;
+      color: #fff; font-size: 24px;
+      font-family: 'Quicksand', monospace;
       text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
-      z-index: 10;
-      pointer-events: none;
+      z-index: 10; pointer-events: none;
     }
 
+    /* ---- Overlays ---------------------------------------------------------- */
     .overlay {
-      position: fixed;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      background: rgba(0, 0, 0, 0.75);
-      z-index: 20;
-      color: #fff;
+      position: fixed; inset: 0;
+      display: flex; flex-direction: column;
+      justify-content: center; align-items: center;
+      z-index: 20; color: #fff;
+      padding: 24px; overflow: auto;
+      background:
+        radial-gradient(120% 90% at 50% 8%, rgba(255,170,90,0.10), transparent 55%),
+        linear-gradient(180deg, rgba(8,4,18,0.55) 0%, rgba(8,4,18,0.82) 100%);
+      backdrop-filter: blur(2px);
     }
     .overlay.hidden { display: none; }
 
-    .overlay h1 {
-      font-size: 48px;
-      margin-bottom: 20px;
+    /* ---- Main menu --------------------------------------------------------- */
+    #menu-overlay { justify-content: flex-start; }
+    .menu-panel {
+      width: min(960px, 96vw);
+      margin: auto;
+      background: var(--panel);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 22px;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.08);
+      padding: 28px 30px 30px;
+      text-align: center;
     }
-    .overlay p {
-      font-size: 20px;
-      margin-bottom: 10px;
-      color: #aaa;
+    .brand {
+      font-family: 'Baloo 2', cursive;
+      font-weight: 800;
+      font-size: clamp(34px, 6vw, 62px);
+      line-height: 1.02;
+      letter-spacing: 1px;
+      background: linear-gradient(180deg, #fff 0%, #ffd9a3 55%, #ff9e5e 100%);
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 4px 0 rgba(0,0,0,0.35));
     }
-    .overlay .score-display {
-      font-size: 28px;
-      margin: 10px 0;
-    }
-    .overlay button {
-      margin-top: 30px;
-      padding: 12px 40px;
-      font-size: 20px;
-      font-family: monospace;
-      font-weight: bold;
-      color: #fff;
-      background: #44aaff;
-      border: none;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-    .overlay button:hover { background: #66ccff; }
+    .tagline { margin-top: 6px; font-size: 15px; color: #d8cff0; opacity: 0.9; }
 
+    .controls {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      justify-content: center; margin: 16px 0 6px;
+    }
+    .controls .pill {
+      font-size: 12.5px; font-weight: 600;
+      padding: 5px 11px; border-radius: 999px;
+      background: rgba(255,255,255,0.10);
+      border: 1px solid rgba(255,255,255,0.12);
+      color: #efe9ff;
+    }
+    .controls .pill b { color: var(--gold); }
+
+    .section-label {
+      margin: 18px 0 4px; font-size: 13px; letter-spacing: 2px;
+      text-transform: uppercase; color: #b9aede; font-weight: 700;
+    }
+
+    /* ---- Track cards ------------------------------------------------------- */
+    #track-select {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 14px; margin: 12px 0 8px;
+    }
+    .track-tile {
+      position: relative; overflow: hidden;
+      border-radius: 14px; cursor: pointer;
+      background: rgba(255,255,255,0.06);
+      border: 2px solid rgba(255,255,255,0.10);
+      box-shadow: 0 8px 22px rgba(0,0,0,0.35);
+      transition: transform .14s ease, border-color .14s, box-shadow .14s;
+      text-align: left;
+    }
+    .track-tile:hover {
+      transform: translateY(-4px);
+      border-color: rgba(255,255,255,0.30);
+      box-shadow: 0 14px 30px rgba(0,0,0,0.45);
+    }
+    .track-tile.selected {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 2px rgba(255,213,74,0.5), 0 16px 34px rgba(0,0,0,0.5);
+    }
+    .track-tile .tprev {
+      display: block; width: 100%; height: auto;
+      aspect-ratio: 300 / 168; background: #0b0a14;
+    }
+    .track-tile .tbody { padding: 9px 11px 11px; }
+    .track-tile .trow {
+      display: flex; align-items: center; justify-content: space-between; gap: 6px;
+    }
+    .track-tile .tname { font-size: 14.5px; font-weight: 700; color: #fff; }
+    .track-tile .tinfo { font-size: 12px; margin-top: 4px; color: #cfc6ea; }
+
+    .badge {
+      font-size: 10.5px; font-weight: 700; letter-spacing: .5px;
+      padding: 3px 8px; border-radius: 999px; white-space: nowrap;
+      text-transform: uppercase; color: #1c1330;
+    }
+    .badge.easy   { background: #7ed957; }
+    .badge.hard   { background: #ff9e5e; }
+    .badge.expert { background: #ff5d6c; color: #fff; }
+    .badge.bonus  { background: var(--gold); }
+
+    /* Locked state */
+    .track-tile.locked { cursor: not-allowed; }
+    .track-tile.locked .tprev { filter: grayscale(0.85) brightness(0.5); }
+    .track-tile.locked:hover { transform: none; border-color: rgba(255,255,255,0.10); }
+    .lock-veil {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 40px; background: rgba(6,4,16,0.42);
+      text-shadow: 0 3px 10px rgba(0,0,0,0.6);
+    }
+
+    /* Bonus ribbon */
+    .track-tile.bonus { border-color: rgba(255,213,74,0.5); }
+    .ribbon {
+      position: absolute; top: 11px; right: -34px;
+      transform: rotate(45deg);
+      background: linear-gradient(180deg, #ffe27a, #f4b400);
+      color: #1c1330; font-weight: 800; font-size: 11px; letter-spacing: 1px;
+      padding: 3px 40px; box-shadow: 0 2px 6px rgba(0,0,0,0.4); z-index: 2;
+    }
+
+    /* ---- Buttons ----------------------------------------------------------- */
+    .overlay button {
+      margin-top: 22px;
+      padding: 14px 44px;
+      font-size: 19px; font-family: 'Quicksand', sans-serif; font-weight: 700;
+      letter-spacing: .5px; color: var(--ink);
+      background: linear-gradient(180deg, #ffe27a 0%, var(--gold) 60%, #f4b400 100%);
+      border: none; border-radius: 999px; cursor: pointer;
+      box-shadow: 0 10px 24px rgba(244,180,0,0.35), inset 0 1px 0 rgba(255,255,255,0.6);
+      transition: transform .12s ease, box-shadow .12s, filter .12s;
+    }
+    .overlay button:hover { transform: translateY(-2px); filter: brightness(1.05); box-shadow: 0 14px 30px rgba(244,180,0,0.5); }
+    .overlay button:active { transform: translateY(0); }
+
+    .overlay h1 { font-family: 'Baloo 2', cursive; font-size: 46px; margin-bottom: 14px; }
+    .overlay .score-display { font-size: 26px; margin: 8px 0; }
+
+    /* ---- Finish overlay panel --------------------------------------------- */
+    #gameover-overlay .menu-panel { max-width: 520px; }
+
+    /* ---- Countdown --------------------------------------------------------- */
     #countdown {
       position: fixed; inset: 0;
-      display: none;
-      align-items: center; justify-content: center;
+      display: none; align-items: center; justify-content: center;
       z-index: 30; pointer-events: none;
-      font-family: 'Quicksand', monospace, sans-serif;
-      font-weight: 700; font-size: 22vh;
+      font-family: 'Baloo 2', 'Quicksand', sans-serif;
+      font-weight: 800; font-size: 22vh;
       color: #fff8e8;
       text-shadow: 0 0 24px rgba(255,160,80,0.9), 4px 6px 0 rgba(0,0,0,0.35);
     }
     #countdown.go { color: #8effa0; font-size: 18vh; text-shadow: 0 0 30px rgba(120,255,140,0.9), 4px 6px 0 rgba(0,0,0,0.35); }
-
-    #track-select {
-      display: flex; gap: 12px; margin: 14px 0 6px;
-      flex-wrap: wrap; justify-content: center;
-    }
-    .track-tile {
-      width: 156px; padding: 12px; border-radius: 10px; cursor: pointer;
-      background: rgba(255,255,255,0.08); border: 3px solid transparent;
-      color: #fff; text-align: center; transition: background .15s, border-color .15s;
-    }
-    .track-tile:hover { background: rgba(255,255,255,0.16); }
-    .track-tile.selected { border-color: #ffd54a; background: rgba(255,213,74,0.18); }
-    .track-tile.locked { opacity: 0.45; cursor: not-allowed; }
-    .track-tile .tname { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
-    .track-tile .tinfo { font-size: 12px; opacity: 0.85; }
   </style>
 </head>
 <body>
@@ -93,18 +186,31 @@
   <div id="countdown"></div>
 
   <div id="menu-overlay" class="overlay">
-    <h1>🐹 CAPPYRACER 🏁</h1>
-    <p>Steer &larr; &rarr; &middot; Accelerate &uarr; &middot; Brake / reverse &darr; &middot; Drift <b>Shift</b> &middot; Item <b>Space</b></p>
-    <p>Race 3 laps. Drift through corners for a boost, grab item boxes, hit the hot-spring pads. Stay on the asphalt!</p>
-    <div id="track-select"></div>
-    <button id="play-btn">PLAY</button>
+    <div class="menu-panel">
+      <div class="brand">🐹 CAPPYRACER 🏁</div>
+      <div class="tagline">Drift the hot-spring circuits as a capybara. Master the line, pelt your rivals, win the Cup.</div>
+
+      <div class="controls">
+        <span class="pill">Steer <b>&larr; &rarr;</b></span>
+        <span class="pill">Gas <b>&uarr;</b></span>
+        <span class="pill">Brake <b>&darr;</b></span>
+        <span class="pill">Drift <b>Shift</b></span>
+        <span class="pill">Item <b>Space</b></span>
+      </div>
+
+      <div class="section-label">Choose your track</div>
+      <div id="track-select"></div>
+      <button id="play-btn">▶  RACE</button>
+    </div>
   </div>
 
   <div id="gameover-overlay" class="overlay hidden">
-    <h1>🏁 FINISH! 🏁</h1>
-    <div class="score-display" id="final-score">Time: 0:00.00</div>
-    <div class="score-display" id="best-score" style="font-size:20px;color:#aaa;">Best: 0:00.00</div>
-    <button id="restart-btn">RACE AGAIN</button>
+    <div class="menu-panel">
+      <h1>🏁 FINISH!</h1>
+      <div class="score-display" id="final-score">Time: 0:00.00</div>
+      <div class="score-display" id="best-score" style="font-size:18px;color:#cfc6ea;">Best: 0:00.00</div>
+      <button id="restart-btn">RACE AGAIN</button>
+    </div>
   </div>
 
   <script type="module" src="/src/main.js"></script>

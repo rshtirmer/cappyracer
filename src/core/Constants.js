@@ -204,6 +204,37 @@ export const ENV = {
   HOTSPRING_COUNT: 5,
 };
 
+// --- Per-environment presets (lighting + scenery counts) ---------------------
+// LevelBuilder / Sky / Scenery branch on def.env. 'springs' uses the warm ENV
+// defaults above; 'space' and 'highway' override lighting + dressing.
+export const ENV_PRESETS = {
+  space: {
+    hemiSky: 0x2a3a7a, hemiGround: 0x0a0820, hemiIntensity: 0.55,
+    sunColor: 0xbfd4ff, sunIntensity: 1.15, sunPos: [80, 120, -40],
+    asteroidCount: 26, crystalCount: 14,
+    starCount: 900, starRadius: 540,
+  },
+  highway: {
+    hemiSky: 0xdcecff, hemiGround: 0x6f7a44, hemiIntensity: 0.9,
+    sunColor: 0xfff6e0, sunIntensity: 1.35, sunPos: [70, 110, 80],
+    signCount: 10, roadsidePropCount: 28,
+  },
+};
+
+// --- Highway traffic ("no-hesi" weaving) -------------------------------------
+export const TRAFFIC = {
+  COUNT: 14,            // traffic vehicles circulating the highway
+  LANES: [-6.5, -2.2, 2.2, 6.5], // lateral lanes (within the wide highway)
+  MIN_SPEED: 11,        // world-units/sec the slowest traffic crawls
+  MAX_SPEED: 19,        // fastest traffic (still slower than the player's top)
+  HIT_DIST: 3.2,        // collision radius vs the player
+  HIT_COOLDOWN: 1.2,    // seconds before the same car can clip you again
+  SPIN_TIME: 0.9,       // spin-out duration when you rear-end traffic
+  SPEED_KEEP: 0.45,     // fraction of speed kept after a clip
+  COLORS: [0xe8e8ee, 0x222831, 0xc0392b, 0x2e6fb0, 0xf1c40f, 0x6c7a89, 0x16a085],
+  CAR_W: 1.9, CAR_H: 1.2, CAR_L: 4.2,
+};
+
 // --- PS2 retro look ----------------------------------------------------------
 export const PS2 = {
   RES_SCALE: 0.5,    // internal render resolution (0.5 = half-res, chunky pixels)

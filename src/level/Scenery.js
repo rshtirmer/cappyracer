@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ENV, COLORS } from '../core/Constants.js';
+import { ENV, ENV_PRESETS, COLORS } from '../core/Constants.js';
 
 /** Tiny seeded RNG so scenery layout is stable across reloads/screenshots. */
 function mulberry32(seed) {
@@ -41,22 +41,33 @@ function bakeUnitParts(gltf) {
 }
 
 /**
- * Static environment dressing around the circuit: GLB trees (instanced), GLB
- * rocks (instanced), and procedural hot-spring pools with steam (the capybara
- * theme). Positions derive from the track centerline so nothing lands on road.
+ * Static environment dressing around the circuit, themed by `theme.env`:
+ *   - springs : GLB trees + rocks + procedural hot-spring pools (with steam) + PSX props.
+ *   - space   : floating GLB asteroids + glowing crystals (no trees/springs).
+ *   - highway : roadside PSX clutter + sparse distant rocks (no trees/springs).
+ * Positions derive from the track centerline so nothing lands on the road.
  */
 export class Scenery {
-  constructor(scene, track, models) {
+  constructor(scene, track, models, theme) {
     this.scene = scene;
     this.track = track;
     this.models = models;
+    this.theme = theme || {};
+    this.env = this.theme.env || 'springs';
     this.rng = mulberry32(1337);
-    this.hotSprings = [];
+    this.hotSprings = []; // empty unless springs env -> emitSteam stays a no-op
 
-    this.buildTrees();
-    this.buildRocks();
-    this.buildHotSprings();
-    this.buildPSXProps();
+    if (this.env === 'space') {
+      this.buildAsteroids();
+      this.buildCrystals();
+    } else if (this.env === 'highway') {
+      this.buildHighwaySides();
+    } else {
+      this.buildTrees();
+      this.buildRocks();
+      this.buildHotSprings();
+      this.buildPSXProps();
+    }
   }
 
   /** Scatter PSX Mega Pack props (barrels, crates, barricades) near the track. */
@@ -88,8 +99,72 @@ export class Scenery {
     this.placeInstances(this.models.rock, ENV.ROCK_COUNT, ENV.ROCK_MIN_H, ENV.ROCK_MAX_H, 2, 62, true);
   }
 
-  /** Scatter `count` instances of a (possibly multi-part) GLB around the track. */
-  placeInstances(gltf, count, minH, maxH, minDist, maxDist, tilt) {
+  // --- Space env -------------------------------------------------------------
+
+  /** Asteroids: rock GLBs scattered + lifted off the floor to float in the void. */
+  buildAsteroids() {
+    const p = ENV_PRESETS.space;
+    if (this.models.rock) {
+      this.placeInstances(this.models.rock, p.asteroidCount, 2.2, 6.5, 6, 90, true, 3, 30);
+    }
+    if (this.models.crate) {
+      this.placeInstances(this.models.crate, 10, 1.0, 2.0, 8, 70, true, 2, 24); // debris
+    }
+  }
+
+  /** Glowing low-poly crystals — neon accents that bloom against the dark. */
+  buildCrystals() {
+    const p = ENV_PRESETS.space;
+    const palette = [0x4fe4ff, 0xb46cff, 0x4fffa0, 0xff6cc4];
+    const geo = new THREE.OctahedronGeometry(1, 0);
+    const meshes = palette.map((color) => {
+      const mat = new THREE.MeshStandardMaterial({
+        color, emissive: color, emissiveIntensity: 0.9, flatShading: true,
+        metalness: 0.1, roughness: 0.4,
+      });
+      const per = Math.ceil(p.crystalCount / palette.length);
+      const im = new THREE.InstancedMesh(geo, mat, per);
+      im.castShadow = true;
+      im.userData.count = 0;
+      return im;
+    });
+    const m = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const e = new THREE.Euler();
+    const pos = new THREE.Vector3();
+    const scl = new THREE.Vector3();
+    for (let i = 0; i < p.crystalCount; i++) {
+      const { x, z } = this.scatterPoint(5, 80);
+      const h = 2.5 + this.rng() * 5;
+      const y = this.rng() * 14;
+      e.set(this.rng() * Math.PI, this.rng() * Math.PI * 2, this.rng() * Math.PI);
+      q.setFromEuler(e);
+      pos.set(x, y + h, z);
+      scl.set(h * 0.5, h, h * 0.5);
+      m.compose(pos, q, scl);
+      const im = meshes[i % meshes.length];
+      im.setMatrixAt(im.userData.count++, m);
+    }
+    for (const im of meshes) { im.instanceMatrix.needsUpdate = true; this.scene.add(im); }
+  }
+
+  // --- Highway env -----------------------------------------------------------
+
+  /** Roadside clutter + distant rocks lining the highway verge. */
+  buildHighwaySides() {
+    const p = ENV_PRESETS.highway;
+    const m = this.models;
+    if (m.barricade) this.placeInstances(m.barricade, p.signCount, 0.9, 1.1, 0.8, 4, false);
+    if (m.barrel) this.placeInstances(m.barrel, Math.floor(p.roadsidePropCount * 0.5), 1.0, 1.3, 1.5, 10, false);
+    if (m.crate) this.placeInstances(m.crate, Math.floor(p.roadsidePropCount * 0.5), 0.6, 0.9, 1.5, 9, false);
+    if (m.rock) this.placeInstances(m.rock, 12, 1.2, 3.2, 14, 90, true);
+  }
+
+  /**
+   * Scatter `count` instances of a (possibly multi-part) GLB around the track.
+   * `minY`/`maxY` lift instances off the floor (for floating space debris).
+   */
+  placeInstances(gltf, count, minH, maxH, minDist, maxDist, tilt, minY = 0, maxY = 0) {
     const parts = bakeUnitParts(gltf);
     const meshes = parts.map((part) => {
       const im = new THREE.InstancedMesh(part.geometry, part.material, count);
@@ -109,7 +184,8 @@ export class Scenery {
       const yaw = this.rng() * Math.PI * 2;
       e.set(tilt ? (this.rng() - 0.5) * 0.5 : 0, yaw, tilt ? (this.rng() - 0.5) * 0.5 : 0);
       q.setFromEuler(e);
-      p.set(x, 0, z);
+      const y = minY + this.rng() * (maxY - minY);
+      p.set(x, y, z);
       sc.set(h, h, h);
       m.compose(p, q, sc);
       for (const im of meshes) im.setMatrixAt(i, m);
@@ -167,6 +243,7 @@ export class Scenery {
 
   /** Emit steam from each hot spring via the shared particle system. */
   emitSteam(particles, delta, rate) {
+    if (!this.hotSprings.length) return;
     this._acc = (this._acc || 0) + delta * rate * this.hotSprings.length;
     while (this._acc >= 1) {
       this._acc -= 1;

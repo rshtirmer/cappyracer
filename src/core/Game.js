@@ -12,9 +12,10 @@ import { Kart } from '../gameplay/Kart.js';
 import { LapTracker } from '../gameplay/LapTracker.js';
 import { AIController } from '../gameplay/AIController.js';
 import { ItemSystem } from '../gameplay/ItemSystem.js';
+import { Traffic } from '../gameplay/Traffic.js';
 import { LevelBuilder } from '../level/LevelBuilder.js';
 import { Track } from '../level/Track.js';
-import { getTrackDef, TRACK_DEFS } from '../level/tracks.js';
+import { getTrackDef, TRACK_DEFS, MAIN_TRACK_COUNT } from '../level/tracks.js';
 import { Sky } from '../level/Sky.js';
 import { Scenery } from '../level/Scenery.js';
 import { AssetLoader } from '../level/AssetLoader.js';
@@ -121,10 +122,16 @@ export class Game {
   buildWorld(def) {
     this.worldGroup = new THREE.Group();
     this.scene.add(this.worldGroup);
-    this.level = new LevelBuilder(this.worldGroup, def.theme);
+    // theme.env drives lighting/sky/scenery presets; carry the def's env onto it.
+    const theme = { ...def.theme, env: def.env || 'springs' };
+    this.laps = def.laps ?? RACE.LAPS;
+    gameState.totalLaps = this.laps;
+    this.level = new LevelBuilder(this.worldGroup, theme);
     this.track = new Track(this.worldGroup, def);
     this.items = new ItemSystem(this.worldGroup, this.track);
-    this.sky = new Sky(this.worldGroup, def.theme);
+    this.sky = new Sky(this.worldGroup, theme);
+    // Highway "no-hesi" traffic to weave through (bonus track only).
+    this.traffic = def.env === 'highway' ? new Traffic(this.worldGroup, this.track) : null;
     this.scene.fog = new THREE.Fog(def.theme.fog ?? LEVEL.FOG_COLOR, LEVEL.FOG_NEAR, LEVEL.FOG_FAR);
     if (this.modelsLoaded) this.buildScenery();
     applyVertexSnapToScene(this.worldGroup, PS2.VERTEX_SNAP);
@@ -132,7 +139,8 @@ export class Game {
 
   buildScenery() {
     if (!this.modelsLoaded || !this.worldGroup) return;
-    this.scenery = new Scenery(this.worldGroup, this.track, this.models);
+    const theme = { ...this.trackDef.theme, env: this.trackDef.env || 'springs' };
+    this.scenery = new Scenery(this.worldGroup, this.track, this.models, theme);
     applyVertexSnapToScene(this.worldGroup, PS2.VERTEX_SNAP);
   }
 
@@ -146,6 +154,7 @@ export class Game {
     });
     this.worldGroup = null;
     this.scenery = null;
+    this.traffic = null;
   }
 
   /** Switch to track `index` in place (rebuild the world, re-grid the field). */
@@ -175,6 +184,7 @@ export class Game {
   startGame() {
     gameState.reset();
     gameState.started = true;
+    gameState.totalLaps = this.laps;
     gameState.countdown = RACE.COUNTDOWN;
     this._finishCount = 0;
     this._goTimer = RACE.GO_HOLD;
@@ -283,6 +293,11 @@ export class Game {
     this.sky.update(delta);
     if (this.scenery) this.scenery.emitSteam(this.particles, delta, FX.STEAM_RATE);
     this.particles.update(delta);
+    // Highway traffic circulates always; only clips the player while racing.
+    if (this.traffic) {
+      const racing = gameState.started && !gameState.finished && gameState.countdown <= 0;
+      this.traffic.update(delta, this.racers, racing);
+    }
 
     if (gameState.started && !gameState.finished && this.racers.length) {
       if (gameState.countdown > 0) {
@@ -397,7 +412,7 @@ export class Game {
     racer.lastProgress = loc.progress;
 
     const completed = racer.lapTracker.update(loc.progress);
-    if (completed && racer.lapTracker.lap >= RACE.LAPS && !racer.finished) {
+    if (completed && racer.lapTracker.lap >= this.laps && !racer.finished) {
       this.finish(racer);
     }
 
@@ -408,7 +423,7 @@ export class Game {
       gameState.lap = racer.lapTracker.lap;
       gameState.gate = racer.lapTracker.nextGate;
       if (completed && !racer.finished) {
-        eventBus.emit(Events.LAP_COMPLETED, { lap: racer.lapTracker.lap, total: RACE.LAPS });
+        eventBus.emit(Events.LAP_COMPLETED, { lap: racer.lapTracker.lap, total: this.laps });
       }
     }
   }
@@ -456,11 +471,12 @@ export class Game {
       gameState.recordFinish();
       gameState.position = racer.finishPlace;
       const newBest = Save.recordTime(this.trackDef.id, gameState.raceTime);
-      // A podium finish on the newest unlocked track opens the next one.
+      // A podium finish on the newest unlocked MAIN track opens the next one.
+      // The bonus track sits outside this linear progression.
       let unlockedNew = false;
-      if (racer.finishPlace <= 3) {
+      if (racer.finishPlace <= 3 && !this.trackDef.bonus) {
         const before = Save.unlockedCount();
-        if (this.trackIndex === before - 1 && before < TRACK_DEFS.length) {
+        if (this.trackIndex === before - 1 && before < MAIN_TRACK_COUNT) {
           Save.unlockUpTo(before + 1);
           unlockedNew = true;
         }
@@ -565,7 +581,7 @@ export class Game {
       countdown: +gameState.countdown.toFixed(2),
       racing: gameState.started && !gameState.finished && gameState.countdown <= 0,
       lap: gameState.lap,
-      totalLaps: RACE.LAPS,
+      totalLaps: this.laps,
       gate: gameState.gate,
       onTrack: gameState.onTrack,
       progress: +gameState.progress.toFixed(3),
