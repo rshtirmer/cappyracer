@@ -22,10 +22,15 @@ export const KART = {
   // Real GLB capybara rider (auto-normalized to RIDER_HEIGHT on load)
   RIDER_HEIGHT: 1.4,  // target world height of the model
   RIVAL_HEIGHT: 1.3,  // rivals normalize to ~the capybara's height (hero stays a touch taller)
-  RIDER_SEAT_Y: 0.7,  // seat height in the kart
+  RIDER_SEAT_Y: 0.24, // seat height in the kart (tuned for the go-kart GLB)
   RIDER_SEAT_Z: 0.1,  // forward/back seat offset
   RIDER_YAW: Math.PI, // yaw so the model faces -Z / forward (tuned visually)
   RIDER_UP_X: 0,      // up-axis correction (set to -PI/2 if model is Z-up)
+  // Kart vehicle GLB fit (replaces the primitive chassis/wheels). Tuned so the
+  // go-kart sits at the right scale + faces forward (-Z); riders re-seat on top.
+  MODEL_LENGTH: 2.9,        // target longest footprint dimension (world units)
+  MODEL_YAW: Math.PI / 2,   // GLB models its front along +X; rotate to face -Z (forward)
+  MODEL_Y: 0,         // vertical nudge (wheels rest at y=0)
   // Orange balanced on the capybara's head (the signature look)
   ORANGE_HEAD_H: 0.5,
   ORANGE_HEAD_LIFT: 0.62, // lift above the head bone so it rests on top
@@ -42,6 +47,8 @@ export const MODELS = {
   BARREL: 'models/barrel.glb',
   CRATE: 'models/crate.glb',
   BARRICADE: 'models/barricade.glb',
+  // The kart vehicle (all racers share it; riders differentiate them)
+  KART: 'models/kart.glb',
   // Rival riders (cute animals)
   DUCK: 'models/rivals/duck.glb',
   CAT: 'models/rivals/cat.glb',
@@ -58,11 +65,11 @@ export const MODELS = {
 // `animate:false` holds a model in its rest pose (its idle clip looks wrong sat
 // in a kart). Order maps to AI rival slots 1..5.
 export const RIVAL_ROSTER = [
-  { id: 'duck',     name: 'Duke the Duck',         file: MODELS.DUCK,     height: 1.3,  yaw: 1.309,   seatY: 0.75, seatZ: 0.05,  animate: false },
-  { id: 'cat',      name: 'Miso the Cat',          file: MODELS.CAT,      height: 1.4,  yaw: Math.PI, seatY: 0.75, seatZ: 0.05,  animate: false },
-  { id: 'frog',     name: 'Pip the Frog',          file: MODELS.FROG,     height: 0.62, yaw: Math.PI, seatY: 0.75, seatZ: -0.45, animate: false },
-  { id: 'tortoise', name: 'Shelldon the Tortoise', file: MODELS.TORTOISE, height: 0.9,  yaw: Math.PI, seatY: 0.77, seatZ: 0.11 },
-  { id: 'hedgehog', name: 'Bramble the Hedgehog',  file: MODELS.HEDGEHOG, height: 1.3,  yaw: Math.PI, seatY: 0.73, seatZ: 0.05,  animate: false },
+  { id: 'duck',     name: 'Duke the Duck',         file: MODELS.DUCK,     height: 1.3,  yaw: 1.309,   seatY: 0.25, seatZ: -0.12, animate: false },
+  { id: 'cat',      name: 'Miso the Cat',          file: MODELS.CAT,      height: 1.5,  yaw: Math.PI, seatY: 0.26, seatZ: 0.05,  animate: false },
+  { id: 'frog',     name: 'Pip the Frog',          file: MODELS.FROG,     height: 0.67, yaw: Math.PI, seatY: 0.52, seatZ: -0.21, animate: false },
+  { id: 'tortoise', name: 'Shelldon the Tortoise', file: MODELS.TORTOISE, height: 0.7,  yaw: Math.PI, seatY: 0.46, seatZ: 0.11 },
+  { id: 'hedgehog', name: 'Bramble the Hedgehog',  file: MODELS.HEDGEHOG, height: 1.3,  yaw: Math.PI, seatY: 0.61, seatZ: 0.71,  animate: false },
 ];
 
 export const COLORS = {

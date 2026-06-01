@@ -60,6 +60,8 @@ When an entry is **rejected**, wrap the title in `~~strikethrough~~` and add a o
 
 - [ ] **Story polish** — per-line typewriter speed/sfx, portrait art for speakers, skippable-per-beat setting, a "replay cinematics" gallery, mid-race scripted moments. Source: 2026-06-01. Size: M · Value: M
 - [ ] **Distinct rival models for story** — the named rivals (Duke/Miso/Pip/Shelldon/Bramble) currently all render as capybaras; give them real GLB models (folds into M13 roster). Source: 2026-06-01. Size: M · Value: M
+- [ ] **Special/unlockable karts (kart-select)** — pre-release, add a kart picker with extra kart models beyond the default red go-kart. Candidates already vetted on poly.pizza (2026-06-01): banana car `m/1RjuCX8gI9w`, shopping cart `m/4lhRcMbl1pw`, golf cart `m/cHsYy--qKC0`, F1 car `m/fLovOv3TAH` (default go-kart = `m/bKDlM4mH7rg`). Needs per-kart rider re-seat (use the rider tuner) + a select UI. Source: 2026-06-01 user. Size: M · Value: M
+- [ ] **Per-kart color / livery** — all racers now share one kart model (riders differentiate them); optionally tint kart bodies per racer for extra readability. Source: 2026-06-01. Size: S · Value: S
 
 ## Polish & juice
 
@@ -98,5 +100,6 @@ When an entry is **rejected**, wrap the title in `~~strikethrough~~` and add a o
   - Source: 2026-05-28 idea phase
 - [ ] **Asset licensing (PROD BLOCKER)** — verify commercial-use license for the PSX Mega Pack textures/props AND the dashboard capybara/orange/tree/rock GLBs before any prod/monetized release. Source: 2026-05-28 demo→prod review.
   - **Rival GLBs (2026-06-01, M13):** cat/frog/hedgehog = Quaternius **CC0** (ok); tortoise = Poly by Google **CC-BY** (needs an attribution credit); duck = Khronos glTF sample asset (verify redistribution terms or swap for a CC0 duck). Add a credits screen/file before launch.
+  - **Kart GLB (2026-06-01):** the go-kart `public/models/kart.glb` (poly.pizza `m/bKDlM4mH7rg`) + any future special karts — verify author/license on poly.pizza and credit/attribute before launch.
 - [ ] **Map-select design** — Mario-Kart cups (group tracks, unlock next after placing) vs simple progressive unlock (beat track N → unlock N+1) vs all-open selector? How many tracks for v1? Persist unlocks in localStorage? Needs more tracks built first. Source: 2026-05-28 user idea.
 - [ ] Monetization — sub.games / Play.fun integration + best-time persistence/leaderboard (gameplan long-term goal). Source: 2026-05-28.

@@ -140,6 +140,40 @@ export class Kart {
   }
 
   /**
+   * Swap the primitive chassis/wheels for a real kart GLB: clone, face it
+   * forward (-Z via cfg.yaw), scale its longest footprint to cfg.length, and
+   * rest its wheels on y=0. The rider (this.capy) is untouched.
+   */
+  setKartModel(gltf, cfg = {}) {
+    if (this.kartBody) { this.mesh.remove(this.kartBody); disposeTree(this.kartBody); }
+    this.wheels = []; // GLB wheels aren't individually rolled
+
+    const model = gltf.scene.clone(true);
+    model.rotation.y = cfg.yaw ?? 0;
+    model.updateMatrixWorld(true);
+
+    let box = new THREE.Box3().setFromObject(model);
+    const size = new THREE.Vector3(); box.getSize(size);
+    const s = (cfg.length ?? 2.8) / (Math.max(size.x, size.z) || 1);
+    model.scale.setScalar(s);
+
+    // Recenter x/z, rest wheels on the ground (+ optional nudge).
+    model.updateMatrixWorld(true);
+    box = new THREE.Box3().setFromObject(model);
+    const c = new THREE.Vector3(); box.getCenter(c);
+    model.position.x -= c.x;
+    model.position.z -= c.z;
+    model.position.y -= box.min.y;
+    model.position.y += cfg.yOffset ?? 0;
+    model.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; } });
+
+    const body = new THREE.Group();
+    body.add(model);
+    this.mesh.add(body);
+    this.kartBody = body;
+  }
+
+  /**
    * Attach a GLB rider to the kart: clone, scale to `opts.height`, recenter onto
    * the seat, face it forward, play its idle clip. `opts.orangeGltf` mounts the
    * signature head orange (capybara only). Shared by the player + every rival so
@@ -320,15 +354,19 @@ export class Kart {
     const g = new THREE.Group();
     const mat = (c) => new THREE.MeshLambertMaterial({ color: c });
 
+    // The vehicle primitives live in a `kartBody` group so a real kart GLB can
+    // swap them out wholesale (setKartModel) without touching the rider.
+    const kartBody = new THREE.Group();
+
     // Kart chassis
     const chassis = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.4, 2.4), mat(this.kartColor));
     chassis.position.y = 0.55;
-    g.add(chassis);
+    kartBody.add(chassis);
 
     // Front bumper trim
     const bumper = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.25, 0.4), mat(COLORS.KART_TRIM));
     bumper.position.set(0, 0.5, -1.25);
-    g.add(bumper);
+    kartBody.add(bumper);
 
     // Wheels: each in a pivot so we can roll it (pivot.rotation.x) regardless
     // of the cylinder being laid on its side.
@@ -345,9 +383,11 @@ export class Kart {
       const w = new THREE.Mesh(wheelGeo, wheelMat);
       w.rotation.z = Math.PI / 2; // axle along X
       pivot.add(w);
-      g.add(pivot);
+      kartBody.add(pivot);
       this.wheels.push(pivot);
     }
+    g.add(kartBody);
+    this.kartBody = kartBody;
 
     // --- Capybara sitting in the kart, facing -Z ---
     const capy = new THREE.Group();
@@ -410,4 +450,13 @@ export class Kart {
     });
     this.scene.remove(this.mesh);
   }
+}
+
+/** Dispose every geometry/material under an object (for swapped-out kart bodies). */
+function disposeTree(obj) {
+  obj.traverse((o) => {
+    if (o.geometry) o.geometry.dispose();
+    const m = o.material;
+    if (m) (Array.isArray(m) ? m : [m]).forEach((x) => x && x.dispose && x.dispose());
+  });
 }

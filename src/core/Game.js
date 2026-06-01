@@ -89,6 +89,7 @@ export class Game {
     this.capyGltf = null;
     this.orangeGltf = null;
     this.rivalGltfs = null; // [duck, cat, frog, tortoise, hedgehog] aligned to RIVAL_ROSTER
+    this.kartGltf = null;   // the kart vehicle GLB (shared by all racers)
     this.assets = new AssetLoader();
     Promise.all([
       this.assets.load(MODELS.CAPYBARA),
@@ -104,17 +105,20 @@ export class Game {
         console.warn('Rival model failed to load:', r.file, e);
         return null;
       })),
+      // Kart vehicle (resilient: failure keeps the primitive kart).
+      this.assets.load(MODELS.KART).catch((e) => { console.warn('Kart model failed to load:', e); return null; }),
     ])
       .then((all) => {
         const [capy, orange, tree1, tree2, rock, barrel, crate, barricade] = all;
         this.capyGltf = capy;
         this.orangeGltf = orange;
         if (this.items) this.items.setYuzu(orange); // yuzu projectile model
-        this.rivalGltfs = all.slice(8); // the 5 rivals, in roster order
+        this.rivalGltfs = all.slice(8, 13); // the 5 rivals, in roster order
+        this.kartGltf = all[13];
         this.models = { tree1, tree2, rock, barrel, crate, barricade };
         this.modelsLoaded = true;
         this.buildScenery();
-        if (this.racers.length) this.attachRiders();
+        if (this.racers.length) { this.attachRiders(); this.applyKarts(); }
         else this.ensureRacers(); // show the full grid on the title screen
       })
       .catch((e) => console.error('Failed to load models:', e));
@@ -295,8 +299,20 @@ export class Game {
       };
       this.racers.push(racer);
       this.attachRiderFor(racer, i);
+      this.applyKartFor(racer.kart);
     }
     this.player = this.racers[0].kart;
+  }
+
+  /** Swap a kart onto the shared kart GLB (no-op until it's loaded). */
+  applyKartFor(kart) {
+    if (this.kartGltf) {
+      kart.setKartModel(this.kartGltf, { yaw: KART.MODEL_YAW, length: KART.MODEL_LENGTH, yOffset: KART.MODEL_Y });
+    }
+  }
+
+  applyKarts() {
+    for (const r of this.racers) this.applyKartFor(r.kart);
   }
 
   /**

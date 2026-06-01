@@ -45,7 +45,9 @@ let current = 0;
 (async () => {
   orangeGltf = await assets.load(MODELS.ORANGE).catch(() => null);
   await Promise.all(CHARS.map(async (c) => { gltfs[c.id] = await assets.load(c.file).catch((e) => { console.error(c.file, e); return null; }); }));
+  const kartGltf = await assets.load(MODELS.KART).catch((e) => { console.error('kart', e); return null; });
   kart = new Kart(scene, COLORS.KART_BODY);
+  if (kartGltf) kart.setKartModel(kartGltf, { yaw: KART.MODEL_YAW, length: KART.MODEL_LENGTH, yOffset: KART.MODEL_Y });
   buildChips();
   select(0);
   renderOut();
