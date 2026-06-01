@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { ITEMS, BOOST_PAD, COLORS } from '../core/Constants.js';
 import { eventBus, Events } from '../core/EventBus.js';
+import { makeItemBox, makeYuzu, makeBoostPadTexture } from './itemMeshes.js';
 
 /**
  * Item boxes on the track grant a random power-up; racers fire/drop/use them.
@@ -17,21 +18,34 @@ export class ItemSystem {
     this.projectiles = [];
     this.hazards = [];
     this.pads = [];
+    this.orangeGltf = null; // set by Game once loaded; yuzu projectile clones it
     this.buildBoxes();
     this.buildPads();
   }
 
+  /** Provide the orange GLB so thrown "shells" render as a tumbling yuzu. */
+  setYuzu(orangeGltf) { this.orangeGltf = orangeGltf; }
+
   buildPads() {
-    const geo = new THREE.CircleGeometry(BOOST_PAD.RADIUS * 0.7, 24);
-    const mat = new THREE.MeshLambertMaterial({
-      color: COLORS.BOOST_PAD, emissive: COLORS.BOOST_PAD, emissiveIntensity: 0.7,
-      transparent: true, opacity: 0.85,
-    });
+    const size = BOOST_PAD.RADIUS * 1.6;
+    const geo = new THREE.PlaneGeometry(size, size);
+    const tex = makeBoostPadTexture();
+    const up = new THREE.Vector3(0, 1, 0);
     for (const progress of BOOST_PAD.PROGRESSES) {
       const s = this.track.pointAt(progress);
+      const mat = new THREE.MeshBasicMaterial({
+        color: COLORS.BOOST_PAD, map: tex, transparent: true, opacity: 0.9,
+        depthWrite: false, fog: false, side: THREE.DoubleSide,
+      });
       const mesh = new THREE.Mesh(geo, mat);
-      mesh.rotation.x = -Math.PI / 2;
+      // Lay flat (plane normal -> up) with the chevrons (texture +v) pointing
+      // along the driving direction (+tangent). Basis vectors avoid Euler-order
+      // guesswork: local x->right, y->forward, z->up.
+      const fwd = new THREE.Vector3(s.tan.x, 0, s.tan.z).normalize();
+      const right = new THREE.Vector3().crossVectors(fwd, up);
+      mesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(right, fwd, up));
       mesh.position.set(s.pos.x, 0.09, s.pos.z);
+      mesh.renderOrder = 2;
       mesh.userData.noPS2 = true;
       this.scene.add(mesh);
       this.pads.push({ pos: mesh.position, mesh });
@@ -39,16 +53,10 @@ export class ItemSystem {
   }
 
   buildBoxes() {
-    const geo = new THREE.BoxGeometry(1.3, 1.3, 1.3);
-    const mat = new THREE.MeshLambertMaterial({
-      color: COLORS.ITEM_BOX, emissive: COLORS.ITEM_BOX_EDGE, emissiveIntensity: 0.4,
-    });
     for (const progress of ITEMS.BOX_PROGRESSES) {
       const s = this.track.pointAt(progress);
-      const mesh = new THREE.Mesh(geo, mat);
+      const mesh = makeItemBox(); // glowing "?" mystery box (a Group)
       mesh.position.set(s.pos.x, ITEMS.BOX_Y, s.pos.z);
-      mesh.castShadow = true;
-      mesh.userData.noPS2 = true;
       this.scene.add(mesh);
       this.boxes.push({ mesh, pos: mesh.position, active: true, respawn: 0 });
     }
@@ -84,10 +92,7 @@ export class ItemSystem {
     if (type === 'melon') {
       kart.applyBoost();
     } else if (type === 'shell') {
-      const geo = new THREE.SphereGeometry(0.5, 12, 10);
-      const mat = new THREE.MeshLambertMaterial({ color: COLORS.SHELL, emissive: COLORS.SHELL, emissiveIntensity: 0.3 });
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.userData.noPS2 = true;
+      const mesh = makeYuzu(this.orangeGltf); // tumbling yuzu projectile
       mesh.position.set(p.x + fx * 2.5, 0.8, p.z + fz * 2.5);
       this.scene.add(mesh);
       this.projectiles.push({ mesh, vel: { x: fx * ITEMS.SHELL_SPEED, z: fz * ITEMS.SHELL_SPEED }, owner: racer, life: ITEMS.SHELL_LIFE });
@@ -109,7 +114,7 @@ export class ItemSystem {
 
     // Boost pads: drive over one (cooldown-gated) for a speed burst.
     for (const pad of this.pads) {
-      pad.mesh.material.emissiveIntensity = 0.5 + 0.3 * Math.sin(this._t * 5);
+      pad.mesh.material.opacity = 0.7 + 0.3 * Math.abs(Math.sin(this._t * 5));
       for (const racer of racers) {
         const kart = racer.kart;
         if (kart.padCooldown > 0) continue;
@@ -126,6 +131,7 @@ export class ItemSystem {
       if (box.active) {
         box.mesh.rotation.y += delta * 2;
         box.mesh.position.y = ITEMS.BOX_Y + Math.sin(this._t * 3) * 0.15;
+        if (box.mesh.userData.core) box.mesh.userData.core.rotation.y -= delta * 3;
         for (const racer of racers) {
           if (racer.heldItem || (racer.kart.spinTimer > 0)) continue;
           if (dist2(racer.kart.mesh.position, box.pos) < ITEMS.BOX_PICKUP_DIST ** 2) {
@@ -156,6 +162,8 @@ export class ItemSystem {
       pr.life -= delta;
       pr.mesh.position.x += pr.vel.x * delta;
       pr.mesh.position.z += pr.vel.z * delta;
+      pr.mesh.rotation.y += delta * 9; // tumble
+      pr.mesh.rotation.x += delta * 5;
       let hit = false;
       for (const racer of racers) {
         if (racer === pr.owner || racer.kart.spinTimer > 0) continue;
@@ -168,7 +176,7 @@ export class ItemSystem {
       }
       if (hit || pr.life <= 0) {
         this.scene.remove(pr.mesh);
-        pr.mesh.geometry.dispose();
+        disposeObject(pr.mesh);
         this.projectiles.splice(i, 1);
       }
     }
@@ -186,7 +194,7 @@ export class ItemSystem {
       }
       if (hz.life <= 0) {
         this.scene.remove(hz.mesh);
-        hz.mesh.geometry.dispose();
+        disposeObject(hz.mesh);
         this.hazards.splice(i, 1);
       }
     }
@@ -197,4 +205,13 @@ function dist2(a, b) {
   const dx = a.x - b.x;
   const dz = a.z - b.z;
   return dx * dx + dz * dz;
+}
+
+/** Dispose an object's geometries/materials (handles Mesh or Group/GLB clone). */
+function disposeObject(obj) {
+  obj.traverse((o) => {
+    if (o.geometry) o.geometry.dispose();
+    const m = o.material;
+    if (m) (Array.isArray(m) ? m : [m]).forEach((x) => x && x.dispose && x.dispose());
+  });
 }

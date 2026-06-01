@@ -109,6 +109,7 @@ export class Game {
         const [capy, orange, tree1, tree2, rock, barrel, crate, barricade] = all;
         this.capyGltf = capy;
         this.orangeGltf = orange;
+        if (this.items) this.items.setYuzu(orange); // yuzu projectile model
         this.rivalGltfs = all.slice(8); // the 5 rivals, in roster order
         this.models = { tree1, tree2, rock, barrel, crate, barricade };
         this.modelsLoaded = true;
@@ -148,6 +149,7 @@ export class Game {
     this.level = new LevelBuilder(this.worldGroup, theme);
     this.track = new Track(this.worldGroup, def);
     this.items = new ItemSystem(this.worldGroup, this.track);
+    if (this.orangeGltf) this.items.setYuzu(this.orangeGltf);
     this.sky = new Sky(this.worldGroup, theme);
     // Highway "no-hesi" traffic to weave through (bonus track only).
     this.traffic = def.env === 'highway' ? new Traffic(this.worldGroup, this.track) : null;
@@ -402,6 +404,8 @@ export class Game {
     if (this.input.consumeUse() && player.heldItem) this.items.useItem(player, this.racers);
     this.items.update(delta, this.racers);
     gameState.heldItem = player.heldItem;
+    // The head orange IS the throwable yuzu — show it only while holding one.
+    this.player.setHeldVisual(player.heldItem === 'shell');
 
     this.resolveCollisions();
     this.updatePositions();

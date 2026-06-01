@@ -147,6 +147,7 @@ export class Kart {
    */
   _attachRider(gltf, opts) {
     if (this.capy) { this.mesh.remove(this.capy); this.capy = null; }
+    this.orange = null; // re-resolved by placeOrangeOnHead (capybara only)
 
     const model = cloneSkinned(gltf.scene);
     model.rotation.set(opts.upX || 0, opts.yaw ?? Math.PI, 0);
@@ -240,7 +241,14 @@ export class Kart {
     pos.y += KART.ORANGE_HEAD_LIFT;
     pos.z += KART.ORANGE_HEAD_Z;
     orange.position.copy(pos);
+    orange.visible = false; // shown only while holding an item (see setHeldVisual)
     this.capy.add(orange);
+    this.orange = orange;
+  }
+
+  /** Show/hide the head orange — the throwable yuzu you're carrying. */
+  setHeldVisual(show) {
+    if (this.orange) this.orange.visible = !!show;
   }
 
   /** While spun out: no control, spin in place, speed bleeds off. */
