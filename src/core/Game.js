@@ -90,6 +90,8 @@ export class Game {
     this.orangeGltf = null;
     this.rivalGltfs = null; // [duck, cat, frog, tortoise, hedgehog] aligned to RIVAL_ROSTER
     this.kartGltf = null;   // the kart vehicle GLB (shared by all racers)
+    this.trophyGltf = null; // the Cup trophy (finale cinematic prop)
+    this.cutsceneProp = null; // active cinematic prop (e.g. the trophy)
     this.assets = new AssetLoader();
     Promise.all([
       this.assets.load(MODELS.CAPYBARA),
@@ -107,6 +109,8 @@ export class Game {
       })),
       // Kart vehicle (resilient: failure keeps the primitive kart).
       this.assets.load(MODELS.KART).catch((e) => { console.warn('Kart model failed to load:', e); return null; }),
+      // Cup trophy for the finale cinematic.
+      this.assets.load(MODELS.TROPHY).catch((e) => { console.warn('Trophy model failed to load:', e); return null; }),
     ])
       .then((all) => {
         const [capy, orange, tree1, tree2, rock, barrel, crate, barricade] = all;
@@ -115,6 +119,7 @@ export class Game {
         if (this.items) this.items.setYuzu(orange); // yuzu projectile model
         this.rivalGltfs = all.slice(8, 13); // the 5 rivals, in roster order
         this.kartGltf = all[13];
+        this.trophyGltf = all[14];
         this.models = { tree1, tree2, rock, barrel, crate, barricade };
         this.modelsLoaded = true;
         this.buildScenery();
@@ -136,6 +141,9 @@ export class Game {
     eventBus.on(Events.RACE_REQUESTED, () => this.onRaceRequested());
     // Finish-screen "Continue": play a beat (e.g. a win beat) then back to menu.
     eventBus.on(Events.CUTSCENE_PLAY, (id) => this.playBeat(id, () => this.restart()));
+    // Cinematic props: reveal the Cup trophy during the finale beat.
+    eventBus.on(Events.CUTSCENE_START, (id) => { if (BEATS[id] && BEATS[id].prop === 'trophy') this.spawnTrophyProp(); });
+    eventBus.on(Events.CUTSCENE_END, () => this.clearCutsceneProp());
 
     window.addEventListener('resize', () => this.onResize());
     this.animate();
@@ -225,6 +233,44 @@ export class Game {
       Save.markBeatSeen(id);
       if (onDone) onDone();
     });
+  }
+
+  /** Reveal the glowing Cup trophy above the capybara during the finale beat. */
+  spawnTrophyProp() {
+    if (!this.trophyGltf || this.cutsceneProp) return;
+    const model = this.trophyGltf.scene.clone(true);
+    model.updateMatrixWorld(true);
+    let box = new THREE.Box3().setFromObject(model);
+    const size = new THREE.Vector3(); box.getSize(size);
+    const center = new THREE.Vector3(); box.getCenter(center);
+    const s = 2.4 / (size.y || 1);
+    model.scale.setScalar(s);
+    model.position.set(-center.x * s, -box.min.y * s, -center.z * s);
+    model.traverse((o) => {
+      if (!o.isMesh) return;
+      o.castShadow = true; o.frustumCulled = false;
+      const tint = (m) => { const c = m.clone(); c.emissive = new THREE.Color(0xffcc33); c.emissiveIntensity = 0.55; return c; };
+      o.material = Array.isArray(o.material) ? o.material.map(tint) : tint(o.material);
+    });
+    const group = new THREE.Group();
+    group.add(model);
+    const p = this.player ? this.player.mesh.position : this.track.startPose.position;
+    group.position.set(p.x, p.y + 2.7, p.z);
+    group.userData.baseY = group.position.y;
+    group.userData.noPS2 = true;
+    this.scene.add(group);
+    this.cutsceneProp = group;
+  }
+
+  clearCutsceneProp() {
+    if (!this.cutsceneProp) return;
+    this.scene.remove(this.cutsceneProp);
+    this.cutsceneProp.traverse((o) => {
+      if (o.geometry) o.geometry.dispose();
+      const m = o.material;
+      if (m) (Array.isArray(m) ? m : [m]).forEach((x) => x && x.dispose && x.dispose());
+    });
+    this.cutsceneProp = null;
   }
 
   startGame() {
@@ -375,6 +421,10 @@ export class Game {
     if (this.cutscene.playing) {
       this.idleRiders(delta);
       this.cutscene.update(delta);
+      if (this.cutsceneProp) {
+        this.cutsceneProp.rotation.y += delta * 0.9; // turntable the Cup
+        this.cutsceneProp.position.y = this.cutsceneProp.userData.baseY + Math.sin(this.cutscene.shotT * 2) * 0.12;
+      }
       return;
     }
 

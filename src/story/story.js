@@ -71,7 +71,7 @@ export const BEATS = {
 
   // --- THE FINALE: winning Cosmic Drift wins the Hot Spring Cup -------------
   finale: {
-    id: 'finale', shot: 'rise', final: true,
+    id: 'finale', shot: 'rise', final: true, prop: 'trophy', // reveal the Cup
     lines: [
       { who: 'Narrator', text: 'Across the stars, Cappy crosses the final line FIRST!' },
       { who: 'Narrator', text: 'The valley erupts. The Hot Spring Cup is lifted high. 🏆🎉' },

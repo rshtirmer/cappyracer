@@ -49,6 +49,8 @@ export const MODELS = {
   BARRICADE: 'models/barricade.glb',
   // The kart vehicle (all racers share it; riders differentiate them)
   KART: 'models/kart.glb',
+  // The Hot Spring Cup trophy (revealed in the finale cinematic)
+  TROPHY: 'models/trophy.glb',
   // Rival riders (cute animals)
   DUCK: 'models/rivals/duck.glb',
   CAT: 'models/rivals/cat.glb',

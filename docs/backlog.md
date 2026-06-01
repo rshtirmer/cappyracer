@@ -101,5 +101,6 @@ When an entry is **rejected**, wrap the title in `~~strikethrough~~` and add a o
 - [ ] **Asset licensing (PROD BLOCKER)** — verify commercial-use license for the PSX Mega Pack textures/props AND the dashboard capybara/orange/tree/rock GLBs before any prod/monetized release. Source: 2026-05-28 demo→prod review.
   - **Rival GLBs (2026-06-01, M13):** cat/frog/hedgehog = Quaternius **CC0** (ok); tortoise = Poly by Google **CC-BY** (needs an attribution credit); duck = Khronos glTF sample asset (verify redistribution terms or swap for a CC0 duck). Add a credits screen/file before launch.
   - **Kart GLB (2026-06-01):** the go-kart `public/models/kart.glb` (poly.pizza `m/bKDlM4mH7rg`) + any future special karts — verify author/license on poly.pizza and credit/attribute before launch.
+  - **Trophy GLB (2026-06-01):** the Cup `public/models/trophy.glb` (poly.pizza `m/fihSkGtvKZs`, by Tiff Eidmann) — verify license + credit before launch.
 - [ ] **Map-select design** — Mario-Kart cups (group tracks, unlock next after placing) vs simple progressive unlock (beat track N → unlock N+1) vs all-open selector? How many tracks for v1? Persist unlocks in localStorage? Needs more tracks built first. Source: 2026-05-28 user idea.
 - [ ] Monetization — sub.games / Play.fun integration + best-time persistence/leaderboard (gameplan long-term goal). Source: 2026-05-28.
