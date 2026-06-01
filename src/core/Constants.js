@@ -21,6 +21,7 @@ export const KART = {
   START_HEADING: 0,   // faces -Z
   // Real GLB capybara rider (auto-normalized to RIDER_HEIGHT on load)
   RIDER_HEIGHT: 1.4,  // target world height of the model
+  RIVAL_HEIGHT: 1.3,  // rivals normalize to ~the capybara's height (hero stays a touch taller)
   RIDER_SEAT_Y: 0.7,  // seat height in the kart
   RIDER_SEAT_Z: 0.1,  // forward/back seat offset
   RIDER_YAW: Math.PI, // yaw so the model faces -Z / forward (tuned visually)
@@ -41,7 +42,28 @@ export const MODELS = {
   BARREL: 'models/barrel.glb',
   CRATE: 'models/crate.glb',
   BARRICADE: 'models/barricade.glb',
+  // Rival riders (cute animals)
+  DUCK: 'models/rivals/duck.glb',
+  CAT: 'models/rivals/cat.glb',
+  FROG: 'models/rivals/frog.glb',
+  TORTOISE: 'models/rivals/tortoise.glb',
+  HEDGEHOG: 'models/rivals/hedgehog.glb',
 };
+
+// --- Rival roster ------------------------------------------------------------
+// The cute-animal rivals (story cast). Transforms below were dialed in with the
+// rider tuner (rider-tuner.html). Per-animal knobs: `height` = rider world
+// height (its full top-to-bottom silhouette is normalized to this); `yaw` faces
+// the model forward (-Z); `seatX`/`seatY`/`seatZ` seat it on the kart;
+// `animate:false` holds a model in its rest pose (its idle clip looks wrong sat
+// in a kart). Order maps to AI rival slots 1..5.
+export const RIVAL_ROSTER = [
+  { id: 'duck',     name: 'Duke the Duck',         file: MODELS.DUCK,     height: 1.3,  yaw: 1.309,   seatY: 0.75, seatZ: 0.05,  animate: false },
+  { id: 'cat',      name: 'Miso the Cat',          file: MODELS.CAT,      height: 1.4,  yaw: Math.PI, seatY: 0.75, seatZ: 0.05,  animate: false },
+  { id: 'frog',     name: 'Pip the Frog',          file: MODELS.FROG,     height: 0.62, yaw: Math.PI, seatY: 0.75, seatZ: -0.45, animate: false },
+  { id: 'tortoise', name: 'Shelldon the Tortoise', file: MODELS.TORTOISE, height: 0.9,  yaw: Math.PI, seatY: 0.77, seatZ: 0.11 },
+  { id: 'hedgehog', name: 'Bramble the Hedgehog',  file: MODELS.HEDGEHOG, height: 1.3,  yaw: Math.PI, seatY: 0.73, seatZ: 0.05,  animate: false },
+];
 
 export const COLORS = {
   SKY: 0xffb877, // warm clear color behind the sky dome (matches horizon)

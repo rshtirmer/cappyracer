@@ -121,14 +121,39 @@ export class Kart {
    * and plays its idle animation. Safe to call after the kart already exists
    * (the model loads asynchronously).
    */
+  /** The capybara player rider (auto-scaled to RIDER_HEIGHT + the head orange). */
   setRider(gltf, orangeGltf) {
+    this._attachRider(gltf, {
+      height: KART.RIDER_HEIGHT, yaw: KART.RIDER_YAW, upX: KART.RIDER_UP_X,
+      seatY: KART.RIDER_SEAT_Y, seatZ: KART.RIDER_SEAT_Z, orangeGltf,
+      // capybara keeps its established bone-extent sizing (unchanged look)
+    });
+  }
+
+  /** A cute-animal rival rider (per-roster height/yaw/seat; no head orange). */
+  setAnimalRider(gltf, cfg) {
+    this._attachRider(gltf, {
+      height: cfg.height ?? KART.RIVAL_HEIGHT, maxDim: cfg.maxDim, yaw: cfg.yaw ?? Math.PI, upX: cfg.upX ?? 0,
+      seatX: cfg.seatX ?? 0, seatY: cfg.seatY ?? KART.RIDER_SEAT_Y, seatZ: cfg.seatZ ?? KART.RIDER_SEAT_Z,
+      orangeGltf: null, animate: cfg.animate !== false, measureSurface: true,
+    });
+  }
+
+  /**
+   * Attach a GLB rider to the kart: clone, scale to `opts.height`, recenter onto
+   * the seat, face it forward, play its idle clip. `opts.orangeGltf` mounts the
+   * signature head orange (capybara only). Shared by the player + every rival so
+   * sizing stays consistent (all heights are relative to the capybara's).
+   */
+  _attachRider(gltf, opts) {
     if (this.capy) { this.mesh.remove(this.capy); this.capy = null; }
 
     const model = cloneSkinned(gltf.scene);
-    model.rotation.set(KART.RIDER_UP_X, KART.RIDER_YAW, 0);
+    model.rotation.set(opts.upX || 0, opts.yaw ?? Math.PI, 0);
 
     // Skinned meshes report a near-zero geometry bbox (verts live in the bones),
-    // so measure the real size from the skeleton bone world positions.
+    // so measure the real size from the skeleton bone world positions; static
+    // meshes fall back to the geometry bbox.
     const measure = () => {
       model.updateMatrixWorld(true);
       const box = new THREE.Box3();
@@ -138,15 +163,27 @@ export class Kart {
         if (o.isSkinnedMesh && o.skeleton) {
           for (const b of o.skeleton.bones) { box.expandByPoint(b.getWorldPosition(tmp)); bones++; }
         }
+        // For animal riders, also fold in each mesh's surface bounds so the FULL
+        // top-to-bottom silhouette (spikes, ears, shell) is what gets normalized
+        // — bones alone under-measure a spiky hedgehog.
+        if (opts.measureSurface && o.isMesh && o.geometry) {
+          if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+          box.union(o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld));
+        }
       });
-      if (bones === 0 || box.isEmpty()) box.setFromObject(model);
+      if ((bones === 0 && !opts.measureSurface) || box.isEmpty()) box.setFromObject(model);
       return box;
     };
 
     const box1 = measure();
     const size = new THREE.Vector3();
     box1.getSize(size);
-    const s = KART.RIDER_HEIGHT / (size.y || Math.max(size.x, size.z) || 1);
+    // Scale by height by default; `maxDim` instead fits the LARGEST dimension to
+    // a target (for models modelled flatter-than-tall, where height-scaling would
+    // blow up their footprint — e.g. a curled hedgehog).
+    const s = opts.maxDim
+      ? opts.maxDim / (Math.max(size.x, size.y, size.z) || 1)
+      : opts.height / (size.y || Math.max(size.x, size.z) || 1);
     model.scale.setScalar(s);
 
     // Recenter onto the seat: feet at y=0, centered in x/z.
@@ -160,24 +197,25 @@ export class Kart {
 
     const rider = new THREE.Group();
     rider.add(model);
-    rider.position.set(0, KART.RIDER_SEAT_Y, KART.RIDER_SEAT_Z);
+    rider.position.set(opts.seatX ?? 0, opts.seatY ?? 0, opts.seatZ ?? 0);
     this.mesh.add(rider);
 
     this.capy = rider;
-    this._capyBaseY = KART.RIDER_SEAT_Y;
+    this._capyBaseY = opts.seatY ?? 0;
 
-    if (gltf.animations && gltf.animations.length) {
+    this.mixer = null;
+    if (opts.animate !== false && gltf.animations && gltf.animations.length) {
       this.mixer = new THREE.AnimationMixer(model);
       this.mixer.clipAction(gltf.animations[0]).play();
     }
 
     // Mount the signature orange on the head bone (so it follows the head).
-    if (orangeGltf) {
+    if (opts.orangeGltf) {
       let headBone = null;
       model.traverse((o) => {
         if (o.isBone && /head/i.test(o.name) && !/end/i.test(o.name) && !headBone) headBone = o;
       });
-      this.placeOrangeOnHead(orangeGltf, headBone);
+      this.placeOrangeOnHead(opts.orangeGltf, headBone);
     }
   }
 

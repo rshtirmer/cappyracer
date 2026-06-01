@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GAME, CAMERA, COLORS, TRACK, RACE, KART, FX, MODELS, PS2, BLOOM, AI, LEVEL } from './Constants.js';
+import { GAME, CAMERA, COLORS, TRACK, RACE, KART, FX, MODELS, RIVAL_ROSTER, PS2, BLOOM, AI, LEVEL } from './Constants.js';
 import { Save } from './Save.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
@@ -88,6 +88,7 @@ export class Game {
     // Load GLB assets; build scenery + the racer grid when ready.
     this.capyGltf = null;
     this.orangeGltf = null;
+    this.rivalGltfs = null; // [duck, cat, frog, tortoise, hedgehog] aligned to RIVAL_ROSTER
     this.assets = new AssetLoader();
     Promise.all([
       this.assets.load(MODELS.CAPYBARA),
@@ -98,10 +99,17 @@ export class Game {
       this.assets.load(MODELS.BARREL),
       this.assets.load(MODELS.CRATE),
       this.assets.load(MODELS.BARRICADE),
+      // Rival riders (resilient: a failed one falls back to a capybara).
+      ...RIVAL_ROSTER.map((r) => this.assets.load(r.file).catch((e) => {
+        console.warn('Rival model failed to load:', r.file, e);
+        return null;
+      })),
     ])
-      .then(([capy, orange, tree1, tree2, rock, barrel, crate, barricade]) => {
+      .then((all) => {
+        const [capy, orange, tree1, tree2, rock, barrel, crate, barricade] = all;
         this.capyGltf = capy;
         this.orangeGltf = orange;
+        this.rivalGltfs = all.slice(8); // the 5 rivals, in roster order
         this.models = { tree1, tree2, rock, barrel, crate, barricade };
         this.modelsLoaded = true;
         this.buildScenery();
@@ -275,21 +283,35 @@ export class Game {
       const kart = new Kart(this.scene, color);
       const pose = this.gridPose(i);
       kart.setPose(pose.position, pose.heading);
-      if (this.capyGltf) kart.setRider(this.capyGltf, this.orangeGltf);
       const ai = isPlayer
         ? null
         : new AIController(AI.LANES[(i - 1) % AI.LANES.length], AI.SKILL[(i - 1) % AI.SKILL.length]);
-      this.racers.push({
+      const racer = {
         kart, ai, lapTracker: new LapTracker(), lastProgress: 0, crossedStart: false,
         finished: false, finishPlace: 0, finishTime: 0, isPlayer, position: i + 1,
         heldItem: null, itemUseTimer: 0,
-      });
+      };
+      this.racers.push(racer);
+      this.attachRiderFor(racer, i);
     }
     this.player = this.racers[0].kart;
   }
 
+  /**
+   * Attach the right rider to a racer: the capybara (+ head orange) for the
+   * player, the mapped cute-animal for each AI rival. No-ops until models load.
+   */
+  attachRiderFor(racer, i) {
+    if (!this.capyGltf) return;
+    if (racer.isPlayer) { racer.kart.setRider(this.capyGltf, this.orangeGltf); return; }
+    const idx = (i - 1) % RIVAL_ROSTER.length;
+    const gltf = this.rivalGltfs && this.rivalGltfs[idx];
+    if (gltf) racer.kart.setAnimalRider(gltf, RIVAL_ROSTER[idx]);
+    else racer.kart.setRider(this.capyGltf, this.orangeGltf); // fallback
+  }
+
   attachRiders() {
-    for (const r of this.racers) r.kart.setRider(this.capyGltf, this.orangeGltf);
+    this.racers.forEach((r, i) => this.attachRiderFor(r, i));
   }
 
   /** Test hook: drop the AI so the player can be measured in isolation. */

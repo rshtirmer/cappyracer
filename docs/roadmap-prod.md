@@ -12,7 +12,7 @@ M01 kart · M02 track + laps · M03 beautify · M04 PS2 retro + PSX assets · M0
 
 ## Phase 2 — Characters & story
 - ✅ **M12 — Story + in-engine cutscenes.** DONE (pulled forward per user): Hot Spring Cup quest (`src/story/story.js`) told via scripted-camera cinematics (`src/ui/Cutscene.js`) with a letterboxed typewriter dialogue overlay; opening + per-track pre-race beats + win beats + Cup finale, wired into the race flow (`RACE_REQUESTED`/`CUTSCENE_PLAY`, finish-screen "Continue Story"); seen-beat persistence in `Save`. Rivals named (duck/cat/frog/tortoise/hedgehog) but still rendered as capybaras until M13.
-- **M13 — Data-driven racer roster.** Support different character models, not just the capybara. Pull GLB models for the named rivals; assign a roster per race. (Capybara stays the player.)
+- ✅ **M13 — Data-driven rival roster.** DONE: 5 cute-animal rival GLBs (duck/cat/frog/tortoise/hedgehog, free libraries) replace recolored capybaras; generic `Kart._attachRider` (capybara + animals share one path) with per-rider height/yaw/seat/animate, animal riders measured by full surface extent; resilient load + `attachRiderFor`; `rider-tuner.html` dev tool to dial in transforms. Licensing tracked in backlog (CC0 except tortoise CC-BY + duck verify).
 
 ## Phase 3 — Production hardening (the demo→prod P0s)
 - **M14 — Loading screen + spinners.** Async-asset loading UX (progress bar / spinner) so nothing pops in; per-track load.
