@@ -56,6 +56,11 @@ When an entry is **rejected**, wrap the title in `~~strikethrough~~` and add a o
 - [ ] **Highway "no-hesi" tuning** — traffic only collides with the player (AI passes through); consider per-track racer count (or a time-attack/no-rivals mode for the highway), traffic density/speed tuning, and oncoming lanes for a truer no-hesi feel. Source: 2026-05-29. Size: M · Value: M
 - [ ] **Per-track AI/traffic awareness** — make AI dodge highway traffic (or spawn fewer AI on the bonus track) so the field isn't trivially passed. Source: 2026-05-29. Size: M · Value: S
 
+> **Story + cutscenes (2026-06-01 user request).** → milestone `12-story-cutscenes.md` (implemented). Hot Spring Cup quest via in-engine cinematics (scripted camera + typewriter dialogue), wired into the race flow; seen-beats persist.
+
+- [ ] **Story polish** — per-line typewriter speed/sfx, portrait art for speakers, skippable-per-beat setting, a "replay cinematics" gallery, mid-race scripted moments. Source: 2026-06-01. Size: M · Value: M
+- [ ] **Distinct rival models for story** — the named rivals (Duke/Miso/Pip/Shelldon/Bramble) currently all render as capybaras; give them real GLB models (folds into M13 roster). Source: 2026-06-01. Size: M · Value: M
+
 ## Polish & juice
 
 - [x] Camera micro-adjustment smoothing — chase cam felt wonky on small left/right corrections. → folded into M02 feel pass (smoothed `camYaw` rotation damping). Source: 2026-05-28 playtest.

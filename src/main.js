@@ -33,6 +33,10 @@ window.__removeAI = () => game.removeAI();
 window.__selectTrack = (i) => game.selectTrack(i);
 window.__SAVE = Save;
 
+// Test hooks: story / cutscenes.
+window.__CUTSCENE__ = game.cutscene;
+window.__playBeat = (id, onDone) => game.playBeat(id, onDone);
+
 // Test hooks: grant / use the player's item.
 window.__giveItem = (type) => { if (game.racers[0]) game.racers[0].heldItem = type; };
 window.__useItem = () => {

@@ -9,15 +9,18 @@
  *     OR — once gated — when every main track has been completed.
  */
 import { TRACK_DEFS, MAIN_TRACKS, MAIN_TRACK_COUNT } from '../level/tracks.js';
+import { BEATS } from '../story/story.js';
 
 const KEY = 'cappyracer.save.v1';
+
+const DEFAULTS = { unlocked: 1, best: {}, beats: {} }; // track 0 unlocked by default
 
 function load() {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) return { ...DEFAULTS, ...JSON.parse(raw) };
   } catch (e) { /* ignore */ }
-  return { unlocked: 1, best: {} }; // track 0 unlocked by default
+  return { ...DEFAULTS };
 }
 
 let data = load();
@@ -48,6 +51,13 @@ export const Save = {
 
   bestTime(trackId) { return data.best[trackId] ?? null; },
 
+  /** Story beats: track which cinematics the player has already seen. */
+  hasSeenBeat(id) { return !!(data.beats && data.beats[id]); },
+  markBeatSeen(id) {
+    if (!data.beats) data.beats = {};
+    if (!data.beats[id]) { data.beats[id] = true; persist(); }
+  },
+
   /** Record a finish time if it beats the stored best. Returns true if new best. */
   recordTime(trackId, time) {
     const prev = data.best[trackId];
@@ -56,5 +66,12 @@ export const Save = {
   },
 
   /** Test helper: wipe saved progress. */
-  reset() { data = { unlocked: 1, best: {} }; persist(); },
+  reset() { data = { ...DEFAULTS, best: {}, beats: {} }; persist(); },
+
+  /** Test helper: mark every story beat seen (skip cinematics). */
+  markAllBeatsSeen() {
+    data.beats = data.beats || {};
+    for (const id of Object.keys(BEATS)) data.beats[id] = true;
+    persist();
+  },
 };

@@ -23,6 +23,12 @@ export const Events = {
   MENU_SHOW: 'menu:show',
   MENU_HIDE: 'menu:hide',
   TRACK_SELECT: 'menu:track-select',
+  RACE_REQUESTED: 'menu:race-requested', // PLAY clicked (story-aware start)
+
+  // Story / cutscenes
+  CUTSCENE_START: 'cutscene:start',
+  CUTSCENE_END: 'cutscene:end',
+  CUTSCENE_PLAY: 'cutscene:play', // request a specific beat by id
 
   // Audio (used by /add-audio)
   AUDIO_INIT: 'audio:init',

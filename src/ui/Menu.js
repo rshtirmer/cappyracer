@@ -12,9 +12,11 @@ export class Menu {
     this.finishOverlay = document.getElementById('gameover-overlay');
     this.playBtn = document.getElementById('play-btn');
     this.restartBtn = document.getElementById('restart-btn');
+    this.continueBtn = document.getElementById('continue-btn');
     this.finalTimeEl = document.getElementById('final-score');
     this.bestTimeEl = document.getElementById('best-score');
     this.trackSelectEl = document.getElementById('track-select');
+    this._winBeat = null;
 
     // Match Game's initially-built track (?track=N, default 0).
     const startIdx = parseInt(new URLSearchParams(location.search).get('track'), 10) || 0;
@@ -22,11 +24,18 @@ export class Menu {
 
     this.playBtn.addEventListener('click', () => {
       this.menuOverlay.classList.add('hidden');
-      eventBus.emit(Events.GAME_START);
+      eventBus.emit(Events.RACE_REQUESTED, this.selected);
     });
     this.restartBtn.addEventListener('click', () => {
       this.finishOverlay.classList.add('hidden');
       eventBus.emit(Events.GAME_RESTART);
+    });
+    if (this.continueBtn) this.continueBtn.addEventListener('click', () => {
+      this.finishOverlay.classList.add('hidden');
+      const beat = this._winBeat;
+      this._winBeat = null;
+      if (beat) eventBus.emit(Events.CUTSCENE_PLAY, beat);
+      else eventBus.emit(Events.GAME_RESTART);
     });
 
     eventBus.on(Events.RACE_FINISHED, (data) => this.showFinish(data));
@@ -106,13 +115,24 @@ export class Menu {
     this.finishOverlay.classList.add('hidden');
   }
 
-  showFinish({ place, total, time, newBest, unlockedNew, trackName }) {
+  /** Hide both menu overlays (used when a cutscene takes over the screen). */
+  hideAll() {
+    this.menuOverlay.classList.add('hidden');
+    this.finishOverlay.classList.add('hidden');
+  }
+
+  showFinish({ place, total, time, newBest, unlockedNew, trackName, winBeat }) {
     const won = place === 1;
     this.finalTimeEl.textContent = `${ordinal(place)} place / ${total}  ·  ${trackName}`;
     const bits = [`${won ? '🏆 You won!' : 'Time'} ${formatTime(time)}`];
     if (newBest) bits.push('⭐ New best!');
     if (unlockedNew) bits.push('🔓 New track unlocked!');
     this.bestTimeEl.textContent = bits.join('  ·  ');
+
+    // A story beat is pending → offer "Continue Story" as the primary action.
+    this._winBeat = winBeat || null;
+    if (this.continueBtn) this.continueBtn.style.display = winBeat ? 'inline-block' : 'none';
+
     this.finishOverlay.classList.remove('hidden');
   }
 }

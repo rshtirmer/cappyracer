@@ -22,6 +22,8 @@ import { AssetLoader } from '../level/AssetLoader.js';
 import { applyVertexSnapToScene } from '../systems/Retro.js';
 import { HUD } from '../ui/HUD.js';
 import { Menu } from '../ui/Menu.js';
+import { Cutscene } from '../ui/Cutscene.js';
+import { PRE_RACE, WIN_BEAT, BEATS } from '../story/story.js';
 
 export class Game {
   constructor() {
@@ -60,6 +62,11 @@ export class Game {
     this.particles = new ParticleSystem(this.scene);
     this.hud = new HUD();
     this.menu = new Menu();
+    // In-engine cinematics. Focus follows the player kart (start line until spawned).
+    this.cutscene = new Cutscene(
+      this.camera,
+      () => (this.player ? this.player.mesh.position : this.track.startPose.position)
+    );
     this.racers = [];     // [player, ...AI], each { kart, ai, lapTracker, ... }
     this.player = null;   // alias for racers[0].kart
     this._dustAcc = 0;
@@ -112,6 +119,10 @@ export class Game {
     eventBus.on(Events.GAME_START, () => this.startGame());
     eventBus.on(Events.GAME_RESTART, () => this.restart());
     eventBus.on(Events.TRACK_SELECT, (index) => this.selectTrack(index));
+    // Story-aware PLAY: play the track's intro beat (once) before racing.
+    eventBus.on(Events.RACE_REQUESTED, () => this.onRaceRequested());
+    // Finish-screen "Continue": play a beat (e.g. a win beat) then back to menu.
+    eventBus.on(Events.CUTSCENE_PLAY, (id) => this.playBeat(id, () => this.restart()));
 
     window.addEventListener('resize', () => this.onResize());
     this.animate();
@@ -179,6 +190,27 @@ export class Game {
       r.crossedStart = false;
     });
     this.snapCameraToKart();
+  }
+
+  /** PLAY pressed: if this track has an unseen intro beat, play it then race. */
+  onRaceRequested() {
+    const beatId = PRE_RACE[this.trackDef.id];
+    if (beatId && BEATS[beatId] && !Save.hasSeenBeat(beatId) && !this.cutscene.playing) {
+      this.playBeat(beatId, () => this.startGame());
+    } else {
+      this.startGame();
+    }
+  }
+
+  /** Play a story beat (in-engine cinematic), marking it seen when it ends. */
+  playBeat(id, onDone) {
+    const beat = BEATS[id];
+    if (!beat) { if (onDone) onDone(); return; }
+    this.menu.hideAll();
+    this.cutscene.play(beat, () => {
+      Save.markBeatSeen(id);
+      if (onDone) onDone();
+    });
   }
 
   startGame() {
@@ -297,6 +329,13 @@ export class Game {
     if (this.traffic) {
       const racing = gameState.started && !gameState.finished && gameState.countdown <= 0;
       this.traffic.update(delta, this.racers, racing);
+    }
+
+    // Cinematic takes over the camera + freezes race/menu logic while playing.
+    if (this.cutscene.playing) {
+      this.idleRiders(delta);
+      this.cutscene.update(delta);
+      return;
     }
 
     if (gameState.started && !gameState.finished && this.racers.length) {
@@ -481,6 +520,12 @@ export class Game {
           unlockedNew = true;
         }
       }
+      // Winning a track plays its story beat (first time only).
+      let winBeat = null;
+      if (racer.finishPlace === 1) {
+        const id = WIN_BEAT[this.trackDef.id];
+        if (id && BEATS[id] && !Save.hasSeenBeat(id)) winBeat = id;
+      }
       eventBus.emit(Events.RACE_FINISHED, {
         place: racer.finishPlace,
         total: this.racers.length,
@@ -488,6 +533,7 @@ export class Game {
         newBest,
         unlockedNew,
         trackName: this.trackDef.name,
+        winBeat,
       });
     }
   }

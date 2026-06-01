@@ -10,8 +10,11 @@ test('no console errors + draw-call budget', async ({ page }) => {
 
   await page.goto('/');
   await page.waitForFunction(
-    () => !!window.__GAME__ && typeof window.__renderStats === 'function'
+    () => !!window.__GAME__ && typeof window.__renderStats === 'function' && !!window.__SAVE
   );
+
+  // Skip story cinematics so PLAY drops straight into the driving scene we measure.
+  await page.evaluate(() => window.__SAVE.markAllBeatsSeen());
 
   // Start and drive in real time so the render loop runs and stats populate.
   await page.click('#play-btn');

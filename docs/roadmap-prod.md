@@ -11,8 +11,8 @@ M01 kart · M02 track + laps · M03 beautify · M04 PS2 retro + PSX assets · M0
 - ✅ **M11 — Menu polish + track overhaul + bonus highway.** DONE: professional menu (glass panel, gradient hero, map-preview cards w/ difficulty badges + lock veils + bonus ribbon); distinct lineup (Sunset Springs / harder Twilight / outer-space Cosmic Drift) + a 4th **bonus highway** with weave-through traffic (`Traffic.js`); `ENV_PRESETS`-driven space/highway lighting/sky/scenery; per-track laps + road width; bonus-gate scaffolding in `Save` (`allMainComplete`, currently open). NOTE: Misty Meadow dropped (replaced by space track). Creative-direction track count is now 3 main + 1 bonus.
 
 ## Phase 2 — Characters & story
-- **M12 — Data-driven racer roster.** Support different character models, not just the capybara. Pull GLB models for non-capybara rivals; assign a roster per race. (Capybara stays the player.)
-- **M13 — Story + cutscenes.** Narrative framing — intro, between-track beats, ending. Style per the user's choice (story cards / in-engine cinematics / comic panels).
+- ✅ **M12 — Story + in-engine cutscenes.** DONE (pulled forward per user): Hot Spring Cup quest (`src/story/story.js`) told via scripted-camera cinematics (`src/ui/Cutscene.js`) with a letterboxed typewriter dialogue overlay; opening + per-track pre-race beats + win beats + Cup finale, wired into the race flow (`RACE_REQUESTED`/`CUTSCENE_PLAY`, finish-screen "Continue Story"); seen-beat persistence in `Save`. Rivals named (duck/cat/frog/tortoise/hedgehog) but still rendered as capybaras until M13.
+- **M13 — Data-driven racer roster.** Support different character models, not just the capybara. Pull GLB models for the named rivals; assign a roster per race. (Capybara stays the player.)
 
 ## Phase 3 — Production hardening (the demo→prod P0s)
 - **M14 — Loading screen + spinners.** Async-asset loading UX (progress bar / spinner) so nothing pops in; per-track load.
