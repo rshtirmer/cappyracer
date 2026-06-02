@@ -19,6 +19,9 @@ export const Events = {
   ITEM_USED: 'item:used',
   ITEM_HIT: 'item:hit',
 
+  // Kart
+  BOOST: 'kart:boost', // any boost fired (drift mini-turbo / melon / pad)
+
   // Menu
   MENU_SHOW: 'menu:show',
   MENU_HIDE: 'menu:hide',

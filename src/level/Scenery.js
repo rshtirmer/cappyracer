@@ -165,11 +165,15 @@ export class Scenery {
    * `minY`/`maxY` lift instances off the floor (for floating space debris).
    */
   placeInstances(gltf, count, minH, maxH, minDist, maxDist, tilt, minY = 0, maxY = 0) {
+    if (!gltf) return; // resilient: a model that failed to load just skips its dressing
     const parts = bakeUnitParts(gltf);
     const meshes = parts.map((part) => {
       const im = new THREE.InstancedMesh(part.geometry, part.material, count);
       im.castShadow = true;
       im.receiveShadow = true;
+      // The instanced geometry is a fresh clone (disposable) but the material is
+      // borrowed from the persistent model gltf — don't free it on world teardown.
+      im.userData.sharedMaterial = true;
       return im;
     });
 

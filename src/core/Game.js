@@ -6,8 +6,10 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { eventBus, Events } from './EventBus.js';
 import { gameState } from './GameState.js';
+import { disposeObject3D } from './disposeUtils.js';
 import { InputSystem } from '../systems/InputSystem.js';
 import { ParticleSystem } from '../systems/ParticleSystem.js';
+import { AudioSystem } from '../systems/AudioSystem.js';
 import { Kart } from '../gameplay/Kart.js';
 import { LapTracker } from '../gameplay/LapTracker.js';
 import { AIController } from '../gameplay/AIController.js';
@@ -23,7 +25,7 @@ import { applyVertexSnapToScene } from '../systems/Retro.js';
 import { HUD } from '../ui/HUD.js';
 import { Menu } from '../ui/Menu.js';
 import { Cutscene } from '../ui/Cutscene.js';
-import { PRE_RACE, WIN_BEAT, BEATS } from '../story/story.js';
+import { PRE_RACE, WIN_BEAT, BEATS, HERO } from '../story/story.js';
 
 export class Game {
   constructor() {
@@ -40,6 +42,20 @@ export class Game {
     this.renderer.domElement.style.width = '100vw';
     this.renderer.domElement.style.height = '100vh';
     this.renderer.domElement.style.imageRendering = 'pixelated';
+
+    // Survive a GPU context loss (tab backgrounded, driver reset, low-end mobile):
+    // preventDefault lets the browser restore the context, after which three.js
+    // re-uploads buffers/textures lazily on the next render. Without this the
+    // canvas goes permanently black.
+    this.renderer.domElement.addEventListener('webglcontextlost', (e) => {
+      e.preventDefault();
+      console.warn('WebGL context lost — pausing render until restored.');
+      this._contextLost = true;
+    }, false);
+    this.renderer.domElement.addEventListener('webglcontextrestored', () => {
+      console.warn('WebGL context restored.');
+      this._contextLost = false;
+    }, false);
 
     // Scene
     this.scene = new THREE.Scene();
@@ -60,6 +76,7 @@ export class Game {
     // Persistent systems (survive track switches).
     this.input = new InputSystem();
     this.particles = new ParticleSystem(this.scene);
+    this.audio = new AudioSystem(); // procedural Web Audio (engine/SFX/music)
     this.hud = new HUD();
     this.menu = new Menu();
     // In-engine cinematics. Focus follows the player kart (start line until spawned).
@@ -91,26 +108,36 @@ export class Game {
     this.rivalGltfs = null; // [duck, cat, frog, tortoise, hedgehog] aligned to RIVAL_ROSTER
     this.kartGltf = null;   // the kart vehicle GLB (shared by all racers)
     this.trophyGltf = null; // the Cup trophy (finale cinematic prop)
+    this.trafficGltfs = null; // [sedan, hatch] highway traffic cars
     this.cutsceneProp = null; // active cinematic prop (e.g. the trophy)
     this.assets = new AssetLoader();
+    // Every asset load is individually resilient: a 404 / parse failure resolves
+    // to null instead of rejecting the whole batch. Downstream code already
+    // null-guards (primitive kart, capybara-fallback rider, scenery skips a
+    // missing model), so a bad asset degrades gracefully instead of leaving the
+    // title screen empty with only a console.error.
+    const tryLoad = (url) => this.assets.load(url).catch((e) => {
+      console.warn('Asset failed to load:', url, e);
+      return null;
+    });
     Promise.all([
-      this.assets.load(MODELS.CAPYBARA),
-      this.assets.load(MODELS.ORANGE),
-      this.assets.load(MODELS.TREE1),
-      this.assets.load(MODELS.TREE2),
-      this.assets.load(MODELS.ROCK),
-      this.assets.load(MODELS.BARREL),
-      this.assets.load(MODELS.CRATE),
-      this.assets.load(MODELS.BARRICADE),
-      // Rival riders (resilient: a failed one falls back to a capybara).
-      ...RIVAL_ROSTER.map((r) => this.assets.load(r.file).catch((e) => {
-        console.warn('Rival model failed to load:', r.file, e);
-        return null;
-      })),
-      // Kart vehicle (resilient: failure keeps the primitive kart).
-      this.assets.load(MODELS.KART).catch((e) => { console.warn('Kart model failed to load:', e); return null; }),
+      tryLoad(MODELS.CAPYBARA),
+      tryLoad(MODELS.ORANGE),
+      tryLoad(MODELS.TREE1),
+      tryLoad(MODELS.TREE2),
+      tryLoad(MODELS.ROCK),
+      tryLoad(MODELS.BARREL),
+      tryLoad(MODELS.CRATE),
+      tryLoad(MODELS.BARRICADE),
+      // Rival riders (a failed one falls back to a capybara).
+      ...RIVAL_ROSTER.map((r) => tryLoad(r.file)),
+      // Kart vehicle (failure keeps the primitive kart).
+      tryLoad(MODELS.KART),
       // Cup trophy for the finale cinematic.
-      this.assets.load(MODELS.TROPHY).catch((e) => { console.warn('Trophy model failed to load:', e); return null; }),
+      tryLoad(MODELS.TROPHY),
+      // Highway traffic cars (failure falls back to primitive boxes).
+      tryLoad(MODELS.TRAFFIC_SEDAN),
+      tryLoad(MODELS.TRAFFIC_HATCH),
     ])
       .then((all) => {
         const [capy, orange, tree1, tree2, rock, barrel, crate, barricade] = all;
@@ -120,9 +147,11 @@ export class Game {
         this.rivalGltfs = all.slice(8, 13); // the 5 rivals, in roster order
         this.kartGltf = all[13];
         this.trophyGltf = all[14];
+        this.trafficGltfs = [all[15], all[16]]; // [sedan, hatch]
         this.models = { tree1, tree2, rock, barrel, crate, barricade };
         this.modelsLoaded = true;
         this.buildScenery();
+        if (this.traffic) this.rebuildTraffic(); // swap box fallback -> GLB cars
         if (this.racers.length) { this.attachRiders(); this.applyKarts(); }
         else this.ensureRacers(); // show the full grid on the title screen
       })
@@ -164,10 +193,20 @@ export class Game {
     if (this.orangeGltf) this.items.setYuzu(this.orangeGltf);
     this.sky = new Sky(this.worldGroup, theme);
     // Highway "no-hesi" traffic to weave through (bonus track only).
-    this.traffic = def.env === 'highway' ? new Traffic(this.worldGroup, this.track) : null;
+    this.traffic = def.env === 'highway'
+      ? new Traffic(this.worldGroup, this.track, this.trafficGltfs)
+      : null;
     this.scene.fog = new THREE.Fog(def.theme.fog ?? LEVEL.FOG_COLOR, LEVEL.FOG_NEAR, LEVEL.FOG_FAR);
     if (this.modelsLoaded) this.buildScenery();
     applyVertexSnapToScene(this.worldGroup, PS2.VERTEX_SNAP);
+  }
+
+  /** Swap the box-fallback traffic for the real GLB cars once they've loaded. */
+  rebuildTraffic() {
+    if (!this.traffic || !this.worldGroup) return;
+    if (!this.traffic.boxMode) return; // already on GLB cars
+    this.traffic.dispose();
+    this.traffic = new Traffic(this.worldGroup, this.track, this.trafficGltfs);
   }
 
   buildScenery() {
@@ -180,11 +219,11 @@ export class Game {
   disposeWorld() {
     if (!this.worldGroup) return;
     this.scene.remove(this.worldGroup);
-    this.worldGroup.traverse((o) => {
-      if (o.geometry) o.geometry.dispose();
-      const m = o.material;
-      if (m) (Array.isArray(m) ? m : [m]).forEach((x) => x && x.dispose && x.dispose());
-    });
+    // Frees per-build geometry/materials/textures (grass, asphalt, banner, sun,
+    // planet, item box "?", boost pads, hot-spring/crystal mats). Scenery's
+    // instanced GLB materials are flagged shared and skipped — they belong to the
+    // persistent model gltfs and are reused on the next build.
+    disposeObject3D(this.worldGroup);
     this.worldGroup = null;
     this.scenery = null;
     this.traffic = null;
@@ -265,8 +304,11 @@ export class Game {
   clearCutsceneProp() {
     if (!this.cutsceneProp) return;
     this.scene.remove(this.cutsceneProp);
+    // The trophy is a GLB clone: geometry + textures are SHARED with the
+    // persistent trophyGltf, but spawnTrophyProp gave it freshly cloned (tinted)
+    // materials. Dispose only those material objects — never the shared geometry
+    // or the shared map textures (that would corrupt the next finale reveal).
     this.cutsceneProp.traverse((o) => {
-      if (o.geometry) o.geometry.dispose();
       const m = o.material;
       if (m) (Array.isArray(m) ? m : [m]).forEach((x) => x && x.dispose && x.dispose());
     });
@@ -342,12 +384,14 @@ export class Game {
         kart, ai, lapTracker: new LapTracker(), lastProgress: 0, crossedStart: false,
         finished: false, finishPlace: 0, finishTime: 0, isPlayer, position: i + 1,
         heldItem: null, itemUseTimer: 0,
+        name: isPlayer ? HERO : RIVAL_ROSTER[(i - 1) % RIVAL_ROSTER.length].name,
       };
       this.racers.push(racer);
       this.attachRiderFor(racer, i);
       this.applyKartFor(racer.kart);
     }
     this.player = this.racers[0].kart;
+    this.player.isPlayerKart = true; // gates player-only SFX (boost whoosh, etc.)
   }
 
   /** Swap a kart onto the shared kart GLB (no-op until it's loaded). */
@@ -400,12 +444,14 @@ export class Game {
     requestAnimationFrame(() => this.animate());
     const delta = Math.min(this.clock.getDelta(), GAME.MAX_DELTA);
     this.update(delta);
+    if (this._contextLost) return; // GPU context gone; skip the draw until restored
     this.composer.render();
   }
 
   /** Advance the simulation by `delta` seconds (driven by animate + advanceTime). */
   update(delta) {
     this.input.update();
+    this.audio.update(); // engine pitch + drift whine + countdown + music scheduler
 
     // Ambient world life runs even on the menu.
     this.sky.update(delta);
@@ -553,6 +599,9 @@ export class Game {
       gameState.offset = loc.offset;
       gameState.lap = racer.lapTracker.lap;
       gameState.gate = racer.lapTracker.nextGate;
+      gameState.speed = kart.speed;          // engine-pitch source for audio
+      gameState.drifting = kart.drifting;     // drift-charge whine source
+      gameState.driftCharge = kart.driftCharge;
       if (completed && !racer.finished) {
         eventBus.emit(Events.LAP_COMPLETED, { lap: racer.lapTracker.lap, total: this.laps });
       }
@@ -594,6 +643,27 @@ export class Game {
     gameState.totalRacers = this.racers.length;
   }
 
+  /**
+   * Final standings snapshot at the moment the player crosses the line. Already
+   * finished racers keep their place + time; racers still on track are projected
+   * by lap + progress (so the results screen shows the full 1st–6th field).
+   */
+  buildStandings() {
+    const prog = (r) => r.lapTracker.lap + r.lastProgress - (r.crossedStart ? 0 : 1);
+    const ranked = [...this.racers].sort((a, b) => {
+      if (a.finished && b.finished) return a.finishPlace - b.finishPlace;
+      if (a.finished !== b.finished) return a.finished ? -1 : 1;
+      return prog(b) - prog(a);
+    });
+    return ranked.map((r, i) => ({
+      place: i + 1,
+      name: r.name,
+      isPlayer: r.isPlayer,
+      finished: r.finished,
+      time: r.finished ? r.finishTime : null,
+    }));
+  }
+
   finish(racer) {
     racer.finished = true;
     racer.finishPlace = ++this._finishCount;
@@ -626,6 +696,7 @@ export class Game {
         unlockedNew,
         trackName: this.trackDef.name,
         winBeat,
+        standings: this.buildStandings(),
       });
     }
   }

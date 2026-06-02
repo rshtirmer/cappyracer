@@ -51,6 +51,10 @@ export const MODELS = {
   KART: 'models/kart.glb',
   // The Hot Spring Cup trophy (revealed in the finale cinematic)
   TROPHY: 'models/trophy.glb',
+  // Highway traffic cars (bonus track). Sedan = Quaternius (CC0, tintable body);
+  // hatch = Poly by Google (CC-BY, native blue) for silhouette variety.
+  TRAFFIC_SEDAN: 'models/traffic-sedan.glb',
+  TRAFFIC_HATCH: 'models/traffic-hatch.glb',
   // Rival riders (cute animals)
   DUCK: 'models/rivals/duck.glb',
   CAT: 'models/rivals/cat.glb',
@@ -154,15 +158,20 @@ export const RACE = {
 };
 
 // --- Drift + boost pads ------------------------------------------------------
+// Tuned 2026-06 (Gate 2 feel pass): TURN_RATE dropped 3.6->3.0 to kill the
+// twitchy over-rotation on gentle corners; boost tiers raised + charge windows
+// shortened so drifting is UNAMBIGUOUSLY the fast line (the "racing line is the
+// meal" thesis). A normal corner now earns a real turbo; a long slide earns a
+// big one. (CHARGE_MIN stays >0.22s so a flick doesn't auto-boost.)
 export const DRIFT = {
   MIN_SPEED: 9,          // must be going at least this fast to drift
-  TURN_RATE: 3.6,        // yaw rate while drifting (tighter than normal)
-  CHARGE_MIN: 0.55,      // min drift time to earn a small boost
-  CHARGE_BIG: 1.4,       // drift time for the big boost
-  BOOST_SMALL: 1.25,     // top-speed multiplier (tier 1)
-  BOOST_BIG: 1.5,        // top-speed multiplier (tier 2)
-  TIME_SMALL: 0.7,
-  TIME_BIG: 1.2,
+  TURN_RATE: 3.0,        // yaw rate while drifting (tighter than normal, was 3.6)
+  CHARGE_MIN: 0.45,      // min drift time to earn a small boost (was 0.55)
+  CHARGE_BIG: 1.1,       // drift time for the big boost (was 1.4)
+  BOOST_SMALL: 1.35,     // top-speed multiplier, tier 1 (was 1.25)
+  BOOST_BIG: 1.6,        // top-speed multiplier, tier 2 (was 1.5)
+  TIME_SMALL: 0.9,       // (was 0.7)
+  TIME_BIG: 1.6,         // (was 1.2)
   LEAN: 0.4,             // extra body lean while sliding
   GRIP_KEEP: 0.985,      // mild speed bleed while drifting (per-frame ^delta)
 };
@@ -254,14 +263,23 @@ export const ENV_PRESETS = {
 
 // --- Highway traffic ("no-hesi" weaving) -------------------------------------
 export const TRAFFIC = {
-  COUNT: 14,            // traffic vehicles circulating the highway
-  LANES: [-6.5, -2.2, 2.2, 6.5], // lateral lanes (within the wide highway)
-  MIN_SPEED: 11,        // world-units/sec the slowest traffic crawls
-  MAX_SPEED: 19,        // fastest traffic (still slower than the player's top)
-  HIT_DIST: 3.2,        // collision radius vs the player
+  COUNT: 56,            // heavy traffic circulating the multi-lane highway
+  LANES: [-9.5, -5.7, -1.9, 1.9, 5.7, 9.5], // 6 lanes across the wide road
+  MIN_SPEED: 10,        // world-units/sec the slowest traffic crawls
+  MAX_SPEED: 20,        // fastest traffic (still slower than the player's top)
+  HIT_DIST: 2.9,        // collision radius vs the player
   HIT_COOLDOWN: 1.2,    // seconds before the same car can clip you again
   SPIN_TIME: 0.9,       // spin-out duration when you rear-end traffic
   SPEED_KEEP: 0.45,     // fraction of speed kept after a clip
+  // Realistic car body palette used to tint the sedan's "Main" material per car.
+  BODY_COLORS: [
+    0xf2f2f4, 0x1b1d22, 0xb7bcc4, 0x9aa0a6, 0xb23b3b, 0x2d5fa8,
+    0x274b7a, 0x7d8a96, 0xd8cdb2, 0x2a6e4f, 0xc9a23a, 0x8a3550,
+  ],
+  // GLB fit: face -Z (travel direction) + scale longest footprint to a car length.
+  MODEL_YAW: 0,         // extra yaw if the model's forward isn't -Z (tuned visually)
+  MODEL_LENGTH: 4.4,    // target longest footprint (world units)
+  // Primitive fallback dimensions (used if no car GLB loaded) + collision size.
   COLORS: [0xe8e8ee, 0x222831, 0xc0392b, 0x2e6fb0, 0xf1c40f, 0x6c7a89, 0x16a085],
   CAR_W: 1.9, CAR_H: 1.2, CAR_L: 4.2,
 };

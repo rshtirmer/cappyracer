@@ -110,11 +110,34 @@ export class Track {
     return { progress: best / n, offset, index: best };
   }
 
-  /** Centerline world position at a given progress (0..1). */
+  /** Centerline world position at a given progress (0..1) — snapped to a sample. */
   pointAt(progress) {
     const n = this.samples.length;
     const i = ((Math.round(progress * n) % n) + n) % n;
     return this.samples[i];
+  }
+
+  /**
+   * Smooth centerline query: linearly interpolates pos/tan/normal BETWEEN the two
+   * nearest samples instead of snapping to one. Continuously-moving things (the
+   * highway traffic) must use this — snapping to one of 420 discrete points makes
+   * a slow car visibly teleport/stutter between samples each frame. Returns a
+   * lightweight {pos, tan, normal} of plain {x, z} (callers only read x/z).
+   */
+  pointAtSmooth(progress) {
+    const n = this.samples.length;
+    const f = (((progress % 1) + 1) % 1) * n;
+    const i0 = Math.floor(f) % n;
+    const i1 = (i0 + 1) % n;
+    const t = f - Math.floor(f);
+    const a = this.samples[i0];
+    const b = this.samples[i1];
+    const lerp = (u, v) => u + (v - u) * t;
+    return {
+      pos: { x: lerp(a.pos.x, b.pos.x), z: lerp(a.pos.z, b.pos.z) },
+      tan: { x: lerp(a.tan.x, b.tan.x), z: lerp(a.tan.z, b.tan.z) },
+      normal: { x: lerp(a.normal.x, b.normal.x), z: lerp(a.normal.z, b.normal.z) },
+    };
   }
 
   // --- Geometry --------------------------------------------------------------

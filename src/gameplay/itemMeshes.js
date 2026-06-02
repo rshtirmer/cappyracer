@@ -120,7 +120,13 @@ export function makeYuzu(orangeGltf, diameter = 0.95) {
   const s = diameter / (Math.max(size.x, size.y, size.z) || 1);
   model.scale.setScalar(s);
   model.position.set(-center.x * s, -center.y * s, -center.z * s); // center on origin
-  model.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
+  // Clone borrows geometry/material/texture from orangeGltf — flag it so removal
+  // (disposeObject3D) frees only the wrapper, never the shared source resources.
+  model.traverse((o) => {
+    if (!o.isMesh) return;
+    o.castShadow = true; o.frustumCulled = false;
+    o.userData.sharedGeometry = true; o.userData.sharedMaterial = true;
+  });
   const group = new THREE.Group();
   group.add(model);
   group.userData.noPS2 = true;

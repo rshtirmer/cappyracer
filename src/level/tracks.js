@@ -86,8 +86,8 @@ export const TRACK_DEFS = [
     bonus: true,
     gated: false,         // <-- set true to gate behind the full Hot Spring Cup
     laps: 2,
-    roadHalf: 11,         // wider, multi-lane road for weaving
-    wallHalf: 13,
+    roadHalf: 13,         // wide 6-lane road for heavy-traffic weaving
+    wallHalf: 15,
     controlPoints: [
       [0, -72], [58, -62], [100, -36], [115, 0], [100, 36], [58, 62], [0, 72],
       [-58, 62], [-100, 36], [-115, 0], [-100, -36], [-58, -62],

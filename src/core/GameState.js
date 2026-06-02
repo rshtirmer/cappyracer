@@ -20,6 +20,11 @@ class GameState {
     this.position = 1;     // live race position (1 = leading)
     this.totalRacers = 1;
     this.heldItem = null;  // player's held item: 'shell' | 'mud' | 'melon' | null
+
+    // Audio reads these each frame (engine pitch + drift-charge whine).
+    this.speed = 0;        // player kart speed (world units/sec)
+    this.drifting = false; // player is power-sliding
+    this.driftCharge = 0;  // seconds held in the current clean drift
   }
 
   recordFinish() {

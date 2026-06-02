@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { KART, COLORS, ITEMS, DRIFT } from '../core/Constants.js';
+import { disposeObject3D, markShared } from '../core/disposeUtils.js';
+import { eventBus, Events } from '../core/EventBus.js';
 
 /**
  * Arcade kart: a scalar forward `speed` plus a `heading` (yaw). Movement is
@@ -26,6 +28,7 @@ export class Kart {
     this.driftDir = 0;              // -1 / +1 : the locked slide direction
     this.driftCharge = 0;           // seconds held in a clean drift
     this.padCooldown = 0;           // boost-pad re-trigger cooldown
+    this.isPlayerKart = false;      // set true for the human's kart (gates SFX)
 
     this.mesh = this.buildMesh();
     this.mesh.position.set(KART.START_X, KART.START_Y, KART.START_Z);
@@ -166,6 +169,7 @@ export class Kart {
     model.position.y -= box.min.y;
     model.position.y += cfg.yOffset ?? 0;
     model.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; } });
+    markShared(model); // clone borrows geometry/material/texture from the kart gltf
 
     const body = new THREE.Group();
     body.add(model);
@@ -229,6 +233,7 @@ export class Kart {
     model.position.z -= center.z;
     model.position.y -= box2.min.y;
     model.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
+    markShared(model); // skinned clone borrows geometry/material from the rider gltf
 
     const rider = new THREE.Group();
     rider.add(model);
@@ -262,6 +267,7 @@ export class Kart {
     new THREE.Box3().setFromObject(orange).getSize(size);
     orange.scale.setScalar(KART.ORANGE_HEAD_H / (size.y || 1)); // rider has unit scale
     orange.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+    markShared(orange); // clone borrows geometry/material/texture from the orange gltf
 
     // Convert the head-bone world position into the rider group's local space.
     this.mesh.updateMatrixWorld(true);
@@ -301,9 +307,13 @@ export class Kart {
 
   /** Boost: instant speed bump + a window of raised top speed (melon/drift/pad). */
   applyBoost(mult = ITEMS.BOOST_MULT, time = ITEMS.BOOST_TIME) {
+    // Don't let a weaker source downgrade an already-active stronger boost: a
+    // pad (1.4x) landing during a big drift turbo (1.6x) must keep the 1.6x.
+    const active = this.boostTimer > 0;
     this.boostTimer = Math.max(this.boostTimer, time);
-    this.boostMult = mult;
-    this.speed = Math.max(this.speed, KART.MAX_SPEED * mult);
+    this.boostMult = active ? Math.max(this.boostMult, mult) : mult;
+    this.speed = Math.max(this.speed, KART.MAX_SPEED * this.boostMult);
+    eventBus.emit(Events.BOOST, { isPlayer: !!this.isPlayerKart, mult: this.boostMult });
   }
 
   /** End a drift and fire a boost sized by how long it was held. */
@@ -444,19 +454,15 @@ export class Kart {
   }
 
   destroy() {
-    this.mesh.traverse((o) => {
-      if (o.geometry) o.geometry.dispose();
-      if (o.material) o.material.dispose();
-    });
+    // Frees the primitive chassis/wheels/capybara (unique). Any attached GLB
+    // rider/kart-body clones flag their borrowed resources shared, so the
+    // persistent source gltfs survive a restart's re-clone.
+    disposeObject3D(this.mesh);
     this.scene.remove(this.mesh);
   }
 }
 
-/** Dispose every geometry/material under an object (for swapped-out kart bodies). */
+/** Dispose a swapped-out kart body (shared GLB resources are skipped). */
 function disposeTree(obj) {
-  obj.traverse((o) => {
-    if (o.geometry) o.geometry.dispose();
-    const m = o.material;
-    if (m) (Array.isArray(m) ? m : [m]).forEach((x) => x && x.dispose && x.dispose());
-  });
+  disposeObject3D(obj);
 }

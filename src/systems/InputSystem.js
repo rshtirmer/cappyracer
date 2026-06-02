@@ -14,6 +14,9 @@
 // unavailable, virtual joystick is shown as fallback.
 // =============================================================================
 
+import { gameState } from '../core/GameState.js';
+import { MobileControls, isTouchDevice } from '../ui/MobileControls.js';
+
 export class InputSystem {
   constructor() {
     this.keys = {};
@@ -27,12 +30,17 @@ export class InputSystem {
       (navigator.maxTouchPoints > 1);
 
     this.useQueued = false; // edge-triggered "use item" (Space / E)
+    this.controls = null;   // on-screen touch controls (mobile / ?touch=1)
 
     window.addEventListener('keydown', (e) => {
       this.keys[e.code] = true;
       if (e.code === 'Space' || e.code === 'KeyE') { this.useQueued = true; e.preventDefault(); }
     });
     window.addEventListener('keyup', (e) => { this.keys[e.code] = false; });
+
+    // Build touch controls on touch devices (or forced via ?touch=1 for testing).
+    const force = new URLSearchParams(location.search).get('touch') === '1';
+    if (isTouchDevice() || force) this.initMobile();
   }
 
   /** Returns true once per "use item" press, then clears it. */
@@ -46,18 +54,14 @@ export class InputSystem {
     return !!this.keys[code];
   }
 
-  /**
-   * Call from a user gesture handler to initialize mobile inputs.
-   * Implement gyroscope permission request and joystick fallback here.
-   */
-  async initMobile() {
-    if (!this.isMobile) return;
-    // TODO: Request gyro permission, fall back to virtual joystick
+  /** Build the on-screen touch controls (left analog stick + DRIFT/ITEM buttons). */
+  initMobile() {
+    this.controls = new MobileControls();
   }
 
   /**
    * Call once per frame in the game loop.
-   * Merges keyboard + mobile sources into moveX/moveZ.
+   * Merges keyboard + touch sources into moveX/moveZ (keyboard overrides).
    */
   update() {
     let mx = 0;
@@ -69,10 +73,16 @@ export class InputSystem {
     if (this.isDown('ArrowUp') || this.isDown('KeyW')) mz -= 1;
     if (this.isDown('ArrowDown') || this.isDown('KeyS')) mz += 1;
 
-    // If no keyboard input, read from mobile sources
-    // const kbActive = mx !== 0 || mz !== 0;
-    // if (!kbActive && this.gyro?.active) { mx = this.gyro.moveX; mz = this.gyro.moveZ; }
-    // if (!kbActive && this.joystick?.active) { mx = this.joystick.moveX; mz = this.joystick.moveZ; }
+    // Touch controls: visible only while racing; feed steering/throttle + item.
+    if (this.controls) {
+      this.controls.setVisible(gameState.started && !gameState.finished);
+      if (this.controls.consumeUse()) this.useQueued = true;
+      if (mx === 0 && mz === 0) {
+        const v = this.controls.getVector();
+        mx = v.x;
+        mz = -v.y; // stick up (+y) => forward (moveZ -1)
+      }
+    }
 
     this.moveX = Math.max(-1, Math.min(1, mx));
     this.moveZ = Math.max(-1, Math.min(1, mz));
@@ -84,5 +94,8 @@ export class InputSystem {
   get forward() { return this.isDown('ArrowUp') || this.isDown('KeyW'); }
   get backward() { return this.isDown('ArrowDown') || this.isDown('KeyS'); }
   get jump() { return this.isDown('Space'); }
-  get drift() { return this.isDown('ShiftLeft') || this.isDown('ShiftRight') || this.isDown('KeyZ'); }
+  get drift() {
+    return this.isDown('ShiftLeft') || this.isDown('ShiftRight') || this.isDown('KeyZ')
+      || (this.controls ? this.controls.driftHeld : false);
+  }
 }

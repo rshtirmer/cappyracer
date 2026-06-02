@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>CappyRacer 🐹🏁</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -168,6 +168,30 @@
     /* ---- Finish overlay panel --------------------------------------------- */
     #gameover-overlay .menu-panel { max-width: 520px; }
     .finish-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+    /* Full finishing-order standings */
+    #standings {
+      margin: 16px auto 4px; max-width: 380px;
+      display: flex; flex-direction: column; gap: 4px;
+      text-align: left;
+    }
+    .standing-row {
+      display: grid; grid-template-columns: 34px 1fr auto;
+      align-items: center; gap: 8px;
+      padding: 7px 12px; border-radius: 10px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.07);
+      font-size: 14.5px; color: #e7e0fb;
+    }
+    .standing-row .st-pos { font-weight: 800; color: #cfc6ea; text-align: center; }
+    .standing-row .st-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .standing-row .st-name b { color: var(--gold); font-weight: 800; }
+    .standing-row .st-time { font-variant-numeric: tabular-nums; opacity: 0.85; font-size: 13px; }
+    .standing-row.me {
+      background: linear-gradient(90deg, rgba(255,213,74,0.22), rgba(255,213,74,0.08));
+      border-color: rgba(255,213,74,0.55);
+      color: #fff; box-shadow: 0 0 0 1px rgba(255,213,74,0.25);
+    }
     #continue-btn {
       background: linear-gradient(180deg, #b9f6ca 0%, #69d98a 60%, #2fae5e 100%);
       color: #07301a;
@@ -233,9 +257,39 @@
       text-shadow: 0 0 24px rgba(255,160,80,0.9), 4px 6px 0 rgba(0,0,0,0.35);
     }
     #countdown.go { color: #8effa0; font-size: 18vh; text-shadow: 0 0 30px rgba(120,255,140,0.9), 4px 6px 0 rgba(0,0,0,0.35); }
+
+    /* ---- Fatal error boundary --------------------------------------------- */
+    #fatal-overlay {
+      position: fixed; inset: 0; z-index: 60; display: none;
+      flex-direction: column; align-items: center; justify-content: center;
+      text-align: center; padding: 28px; color: #fff;
+      background: linear-gradient(180deg, #1a0f24 0%, #0a0712 100%);
+      font-family: 'Quicksand', system-ui, sans-serif;
+    }
+    #fatal-overlay.show { display: flex; }
+    #fatal-overlay .emoji { font-size: 54px; margin-bottom: 12px; }
+    #fatal-overlay h2 { font-family: 'Baloo 2', cursive; font-size: 28px; margin-bottom: 10px; color: var(--gold); }
+    #fatal-overlay p { font-size: 15px; color: #cfc6ea; max-width: 460px; line-height: 1.5; }
+    #fatal-detail { font-size: 12px; opacity: 0.6; margin-top: 10px; font-family: monospace; }
+    #fatal-overlay button { margin-top: 22px; }
+
+    /* ---- Mute toggle ------------------------------------------------------- */
+    #mute-btn {
+      position: fixed; top: 16px; right: 16px; z-index: 50;
+      width: 42px; height: 42px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 19px; cursor: pointer; color: #fff;
+      background: rgba(20,12,36,0.55); border: 1px solid rgba(255,255,255,0.18);
+      backdrop-filter: blur(3px);
+      box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+      transition: background .15s, transform .12s;
+      user-select: none;
+    }
+    #mute-btn:hover { background: rgba(40,26,64,0.8); transform: translateY(-1px); }
   </style>
 </head>
 <body>
+  <button id="mute-btn" title="Mute / unmute (M)">🔊</button>
   <div id="hud"></div>
   <div id="countdown"></div>
 
@@ -263,11 +317,21 @@
       <h1>🏁 FINISH!</h1>
       <div class="score-display" id="final-score">Time: 0:00.00</div>
       <div class="score-display" id="best-score" style="font-size:18px;color:#cfc6ea;">Best: 0:00.00</div>
+      <div id="standings"></div>
       <div class="finish-actions">
         <button id="continue-btn" style="display:none;">▶ Continue Story</button>
         <button id="restart-btn">RACE AGAIN</button>
       </div>
     </div>
+  </div>
+
+  <!-- Fatal error boundary (hard init failure, e.g. no WebGL) -->
+  <div id="fatal-overlay">
+    <div class="emoji">🐹💤</div>
+    <h2>The capybara couldn’t start the race</h2>
+    <p>Something went wrong loading the game. This usually means WebGL or hardware acceleration is unavailable in your browser.</p>
+    <div id="fatal-detail"></div>
+    <button onclick="location.reload()">Try again</button>
   </div>
 
   <!-- In-engine cinematic overlay (letterboxed dialogue over the 3D world) -->

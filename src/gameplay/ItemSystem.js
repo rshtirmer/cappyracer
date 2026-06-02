@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { ITEMS, BOOST_PAD, COLORS } from '../core/Constants.js';
 import { eventBus, Events } from '../core/EventBus.js';
+import { disposeObject3D } from '../core/disposeUtils.js';
 import { makeItemBox, makeYuzu, makeBoostPadTexture } from './itemMeshes.js';
 
 /**
@@ -207,11 +208,11 @@ function dist2(a, b) {
   return dx * dx + dz * dz;
 }
 
-/** Dispose an object's geometries/materials (handles Mesh or Group/GLB clone). */
+/**
+ * Dispose a removed item object. The mud hazard + sphere-fallback yuzu own unique
+ * geometry/materials and are freed; the GLB-clone yuzu flags its borrowed
+ * resources shared so only its wrapper is released.
+ */
 function disposeObject(obj) {
-  obj.traverse((o) => {
-    if (o.geometry) o.geometry.dispose();
-    const m = o.material;
-    if (m) (Array.isArray(m) ? m : [m]).forEach((x) => x && x.dispose && x.dispose());
-  });
+  disposeObject3D(obj);
 }

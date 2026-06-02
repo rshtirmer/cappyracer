@@ -15,6 +15,7 @@ export class Menu {
     this.continueBtn = document.getElementById('continue-btn');
     this.finalTimeEl = document.getElementById('final-score');
     this.bestTimeEl = document.getElementById('best-score');
+    this.standingsEl = document.getElementById('standings');
     this.trackSelectEl = document.getElementById('track-select');
     this._winBeat = null;
 
@@ -121,7 +122,7 @@ export class Menu {
     this.finishOverlay.classList.add('hidden');
   }
 
-  showFinish({ place, total, time, newBest, unlockedNew, trackName, winBeat }) {
+  showFinish({ place, total, time, newBest, unlockedNew, trackName, winBeat, standings }) {
     const won = place === 1;
     this.finalTimeEl.textContent = `${ordinal(place)} place / ${total}  ·  ${trackName}`;
     const bits = [`${won ? '🏆 You won!' : 'Time'} ${formatTime(time)}`];
@@ -129,10 +130,37 @@ export class Menu {
     if (unlockedNew) bits.push('🔓 New track unlocked!');
     this.bestTimeEl.textContent = bits.join('  ·  ');
 
+    this.renderStandings(standings, time);
+
     // A story beat is pending → offer "Continue Story" as the primary action.
     this._winBeat = winBeat || null;
     if (this.continueBtn) this.continueBtn.style.display = winBeat ? 'inline-block' : 'none';
 
     this.finishOverlay.classList.remove('hidden');
+  }
+
+  /** Render the full finishing order (1st–6th), player row highlighted. */
+  renderStandings(standings, playerTime) {
+    if (!this.standingsEl) return;
+    if (!standings || !standings.length) { this.standingsEl.innerHTML = ''; return; }
+    const medals = { 1: '🥇', 2: '🥈', 3: '🥉' };
+    const winnerTime = standings[0] && standings[0].time;
+    this.standingsEl.innerHTML = standings.map((s) => {
+      const pos = medals[s.place] || `${s.place}.`;
+      let right;
+      if (s.time != null) {
+        const gap = winnerTime != null && s.place > 1 ? `+${formatTime(s.time - winnerTime)}` : formatTime(s.time);
+        right = gap;
+      } else {
+        right = 'DNF';
+      }
+      return (
+        `<div class="standing-row${s.isPlayer ? ' me' : ''}">` +
+          `<span class="st-pos">${pos}</span>` +
+          `<span class="st-name">${s.name}${s.isPlayer ? ' <b>(You)</b>' : ''}</span>` +
+          `<span class="st-time">${right}</span>` +
+        `</div>`
+      );
+    }).join('');
   }
 }
