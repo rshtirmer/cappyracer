@@ -1,6 +1,8 @@
 import * as THREE from 'three';
-import { TRAFFIC } from '../core/Constants.js';
+import { TRAFFIC, CRUISE, KART } from '../core/Constants.js';
 import { disposeObject3D } from '../core/disposeUtils.js';
+import { gameState } from '../core/GameState.js';
+import { eventBus, Events } from '../core/EventBus.js';
 
 /**
  * Highway traffic for the "no-hesi" bonus track: a heavy, multi-lane stream of
@@ -17,9 +19,10 @@ import { disposeObject3D } from '../core/disposeUtils.js';
  * shake as you drove past (the karts live outside the snapped worldGroup).
  */
 export class Traffic {
-  constructor(scene, track, carGltfs) {
+  constructor(scene, track, carGltfs, cruise = false) {
     this.scene = scene;
     this.track = track;
+    this.cruise = cruise; // free-cruise enables near-miss scoring
     this.length = track.curve.getLength() || 1;
     this.cars = [];
     this.allMeshes = [];
@@ -37,6 +40,7 @@ export class Traffic {
         lane: TRAFFIC.LANES[Math.floor(seed(i + 5) * TRAFFIC.LANES.length)],
         speed: TRAFFIC.MIN_SPEED + seed(i + 3) * (TRAFFIC.MAX_SPEED - TRAFFIC.MIN_SPEED),
         hitTimer: 0,
+        near: false,           // player currently alongside (for near-miss scoring)
         model: 0, slot: 0,
         colorIdx: Math.floor(seed(i + 7) * TRAFFIC.BODY_COLORS.length),
       });
@@ -205,24 +209,52 @@ export class Traffic {
     if (!racing || !racers || !racers.length) return;
     const player = racers[0];
     const kart = player.kart;
-    if (kart.spinTimer > 0) return;
     const px = kart.mesh.position.x;
     const pz = kart.mesh.position.z;
-    const r2 = TRAFFIC.HIT_DIST * TRAFFIC.HIT_DIST;
+    const hit2 = TRAFFIC.HIT_DIST * TRAFFIC.HIT_DIST;
+    const near2 = CRUISE.NEAR_DIST * CRUISE.NEAR_DIST;
+    let spun = kart.spinTimer > 0;
+    let crashed = false;
+
     for (let i = 0; i < this.cars.length; i++) {
       const car = this.cars[i];
-      if (car.hitTimer > 0) continue;
       const s = this.track.pointAtSmooth(car.progress);
       const cx = s.pos.x + s.normal.x * car.lane;
       const cz = s.pos.z + s.normal.z * car.lane;
       const dx = px - cx;
       const dz = pz - cz;
-      if (dx * dx + dz * dz < r2) {
+      const d2 = dx * dx + dz * dz;
+
+      // Collision: spin the player out + cooldown.
+      if (!spun && car.hitTimer <= 0 && d2 < hit2) {
         kart.spinOut(TRAFFIC.SPIN_TIME);
         kart.speed *= TRAFFIC.SPEED_KEEP;
         car.hitTimer = TRAFFIC.HIT_COOLDOWN;
-        break; // one clip per frame
+        car.near = false;
+        spun = true;
+        crashed = true;
+        eventBus.emit(Events.ITEM_HIT, { type: 'traffic', isPlayer: true });
       }
+
+      // Near-miss scoring (free-cruise): award when you thread CLOSE past a car.
+      if (this.cruise) {
+        if (d2 < near2) {
+          car.near = true; // alongside
+        } else if (car.near) {
+          car.near = false;
+          if (!spun && kart.speed > CRUISE.MIN_SPEED) {
+            const pts = Math.round(CRUISE.BASE_POINTS * gameState.combo * (kart.speed / KART.MAX_SPEED));
+            gameState.score += pts;
+            eventBus.emit(Events.NEAR_MISS, { points: pts, combo: gameState.combo });
+            gameState.combo = Math.min(CRUISE.COMBO_MAX, gameState.combo + CRUISE.COMBO_STEP);
+          }
+        }
+      }
+    }
+
+    if (this.cruise && crashed && gameState.combo > 1) {
+      gameState.combo = 1; // a crash wipes the multiplier
+      eventBus.emit(Events.COMBO_RESET);
     }
   }
 

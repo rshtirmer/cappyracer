@@ -175,6 +175,15 @@ export class Game {
     eventBus.on(Events.CUTSCENE_END, () => this.clearCutsceneProp());
 
     window.addEventListener('resize', () => this.onResize());
+
+    // Free-cruise never finishes — Esc quits back to the menu.
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Escape' && gameState.started && !gameState.finished
+        && this.trackDef.endless && !this.cutscene.playing) {
+        eventBus.emit(Events.GAME_RESTART);
+      }
+    });
+
     this.animate();
   }
 
@@ -185,16 +194,18 @@ export class Game {
     this.scene.add(this.worldGroup);
     // theme.env drives lighting/sky/scenery presets; carry the def's env onto it.
     const theme = { ...def.theme, env: def.env || 'springs' };
-    this.laps = def.laps ?? RACE.LAPS;
+    // Endless free-cruise (highway) runs infinite laps and never finishes.
+    this.laps = def.endless ? Infinity : (def.laps ?? RACE.LAPS);
     gameState.totalLaps = this.laps;
     this.level = new LevelBuilder(this.worldGroup, theme);
     this.track = new Track(this.worldGroup, def);
-    this.items = new ItemSystem(this.worldGroup, this.track);
+    // Free-cruise has no power-ups; cup tracks do.
+    this.items = new ItemSystem(this.worldGroup, this.track, { enabled: !def.endless });
     if (this.orangeGltf) this.items.setYuzu(this.orangeGltf);
     this.sky = new Sky(this.worldGroup, theme);
-    // Highway "no-hesi" traffic to weave through (bonus track only).
+    // Highway "no-hesi" traffic to weave through; `cruise` enables near-miss scoring.
     this.traffic = def.env === 'highway'
-      ? new Traffic(this.worldGroup, this.track, this.trafficGltfs)
+      ? new Traffic(this.worldGroup, this.track, this.trafficGltfs, !!def.endless)
       : null;
     this.scene.fog = new THREE.Fog(def.theme.fog ?? LEVEL.FOG_COLOR, LEVEL.FOG_NEAR, LEVEL.FOG_FAR);
     if (this.modelsLoaded) this.buildScenery();
@@ -205,8 +216,9 @@ export class Game {
   rebuildTraffic() {
     if (!this.traffic || !this.worldGroup) return;
     if (!this.traffic.boxMode) return; // already on GLB cars
+    const cruise = this.traffic.cruise;
     this.traffic.dispose();
-    this.traffic = new Traffic(this.worldGroup, this.track, this.trafficGltfs);
+    this.traffic = new Traffic(this.worldGroup, this.track, this.trafficGltfs, cruise);
   }
 
   buildScenery() {
@@ -316,13 +328,15 @@ export class Game {
   }
 
   startGame() {
+    const endless = !!this.trackDef.endless;
     gameState.reset();
     gameState.started = true;
+    gameState.endless = endless;
     gameState.totalLaps = this.laps;
     gameState.countdown = RACE.COUNTDOWN;
     this._finishCount = 0;
     this._goTimer = RACE.GO_HOLD;
-    this.ensureRacers();
+    this.ensureRacers(endless ? 1 : RACE.RACERS); // solo for free-cruise
     this.racers.forEach((r, i) => {
       r.kart.reset();
       const pose = this.gridPose(i);
@@ -368,10 +382,19 @@ export class Game {
     };
   }
 
-  /** Create the player + AI racers on the grid (idempotent). */
-  ensureRacers() {
-    if (this.racers.length) return;
-    for (let i = 0; i < RACE.RACERS; i++) {
+  /**
+   * Create exactly `count` racers on the grid (player + count-1 AI). Idempotent
+   * when the field already has that many; rebuilds when the size differs (e.g.
+   * switching between a 6-kart cup race and the solo free-cruise).
+   */
+  ensureRacers(count = RACE.RACERS) {
+    if (this.racers.length === count) return;
+    if (this.racers.length) {
+      for (const r of this.racers) r.kart.destroy();
+      this.racers = [];
+      this.player = null;
+    }
+    for (let i = 0; i < count; i++) {
       const isPlayer = i === 0;
       const color = isPlayer ? COLORS.KART_BODY : AI.RIVAL_COLORS[(i - 1) % AI.RIVAL_COLORS.length];
       const kart = new Kart(this.scene, color);

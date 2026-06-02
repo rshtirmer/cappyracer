@@ -4,7 +4,7 @@ import { TRACK_DEFS } from '../level/tracks.js';
 import { Save } from '../core/Save.js';
 import { drawTrackPreview } from './trackPreview.js';
 
-const DIFF_CLASS = { Easy: 'easy', Hard: 'hard', Expert: 'expert', Bonus: 'bonus' };
+const DIFF_CLASS = { Easy: 'easy', Hard: 'hard', Expert: 'expert', Bonus: 'bonus', Cruise: 'cruise' };
 
 export class Menu {
   constructor() {

@@ -81,11 +81,11 @@ export const TRACK_DEFS = [
   {
     id: 'highway',
     name: 'Highway No-Hesi',
-    difficulty: 'Bonus',
+    difficulty: 'Cruise',
     env: 'highway',
     bonus: true,
     gated: false,         // <-- set true to gate behind the full Hot Spring Cup
-    laps: 2,
+    endless: true,        // free-cruise: solo, no items, infinite laps, near-miss scoring
     roadHalf: 13,         // wide 6-lane road for heavy-traffic weaving
     wallHalf: 15,
     controlPoints: [
@@ -97,6 +97,8 @@ export const TRACK_DEFS = [
       fog: 0xd5e8ff, ground: 0x7c8a52, // bright clear daytime + roadside grass
       highway: true,
       roadColor: 0x3a3f47, edgeColor: 0xf4f4f4,
+      // Dashed white lane dividers (midpoints between the 6 traffic lanes).
+      laneDividers: [-7.6, -3.8, 0, 3.8, 7.6],
     },
   },
 ];

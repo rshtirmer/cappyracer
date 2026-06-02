@@ -56,6 +56,7 @@ export class Track {
     this.group = new THREE.Group();
     this.buildRoad();
     this.buildEdgeLines();
+    this.buildLaneLines();
     this.buildCurbs();
     this.buildStartLine();
     this.buildBarriers();
@@ -214,6 +215,47 @@ export class Track {
       line.userData.noPS2 = true;
       this.group.add(line);
     }
+  }
+
+  /**
+   * Dashed white lane dividers down the road (highway only — theme.laneDividers
+   * holds the lateral offsets). One merged geometry of short quads following the
+   * centerline; the dash pattern tiles the 420 samples exactly so there's no seam.
+   */
+  buildLaneLines() {
+    const dividers = this.theme.laneDividers;
+    if (!dividers || !dividers.length) return;
+    const n = this.samples.length;
+    const HALF_W = 0.16;     // line half-width
+    const DASH = 4, GAP = 8; // samples on/off (420 / 12 = 35 dashes per lane, no seam)
+    const half = HALF_W;
+    const positions = [];
+    const indices = [];
+    let v = 0;
+    for (const off of dividers) {
+      for (let i = 0; i < n; i++) {
+        if ((i % (DASH + GAP)) >= DASH) continue;
+        const a = this.samples[i];
+        const b = this.samples[(i + 1) % n];
+        const ax = a.pos.x + a.normal.x * off, az = a.pos.z + a.normal.z * off;
+        const bx = b.pos.x + b.normal.x * off, bz = b.pos.z + b.normal.z * off;
+        positions.push(
+          ax + a.normal.x * half, 0.07, az + a.normal.z * half,
+          ax - a.normal.x * half, 0.07, az - a.normal.z * half,
+          bx + b.normal.x * half, 0.07, bz + b.normal.z * half,
+          bx - b.normal.x * half, 0.07, bz - b.normal.z * half,
+        );
+        indices.push(v, v + 2, v + 1, v + 1, v + 2, v + 3);
+        v += 4;
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geo.setIndex(indices);
+    const mat = new THREE.MeshBasicMaterial({ color: 0xf4f4f4, side: THREE.DoubleSide });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.userData.noPS2 = true;
+    this.group.add(mesh);
   }
 
   buildCurbs() {

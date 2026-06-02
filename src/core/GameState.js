@@ -25,6 +25,11 @@ class GameState {
     this.speed = 0;        // player kart speed (world units/sec)
     this.drifting = false; // player is power-sliding
     this.driftCharge = 0;  // seconds held in the current clean drift
+
+    // Highway free-cruise (endless no-hesi score attack).
+    this.endless = false;  // current track is the free-cruise highway
+    this.score = 0;        // accumulated near-miss score
+    this.combo = 1;        // near-miss multiplier (resets to 1 on a crash)
   }
 
   recordFinish() {

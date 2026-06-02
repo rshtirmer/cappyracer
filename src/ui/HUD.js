@@ -40,6 +40,16 @@ export class HUD {
   }
 
   update(state) {
+    // Free-cruise: show the near-miss score + combo instead of lap/position.
+    if (state.endless) {
+      this.el.innerHTML =
+        `<div style="font-size:13px;letter-spacing:3px;color:#bfe3ff">FREE CRUISE</div>` +
+        `<div style="font-size:38px;font-weight:700;color:#fff;line-height:1.05">${Math.round(state.score).toLocaleString()}</div>` +
+        `<div style="font-size:26px;color:#ffd54a">x${state.combo}<span style="font-size:13px;color:#dfe7ff;opacity:.8"> COMBO</span></div>` +
+        `<div style="font-size:14px;opacity:.75;margin-top:2px">${Math.round(Math.abs(state.speed))} u/s · <span style="opacity:.8">Esc to exit</span></div>`;
+      return;
+    }
+
     const total = state.totalLaps || RACE.LAPS;
     const lap = Math.min(state.lap + (state.finished ? 0 : 1), total);
     const offTrack = !state.onTrack

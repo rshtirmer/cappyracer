@@ -296,6 +296,15 @@ export const TRAFFIC = {
   CAR_W: 1.9, CAR_H: 1.2, CAR_L: 4.2,
 };
 
+// --- Highway free-cruise (endless no-hesi score attack) ----------------------
+export const CRUISE = {
+  NEAR_DIST: 5.2,    // within this (but > TRAFFIC.HIT_DIST) when you pass = a near-miss
+  MIN_SPEED: 16,     // must be going at least this fast for a near-miss to count
+  BASE_POINTS: 50,   // base points per near-miss (scaled by speed + combo)
+  COMBO_MAX: 20,     // multiplier cap
+  COMBO_STEP: 1,     // combo gained per clean near-miss
+};
+
 // --- PS2 retro look ----------------------------------------------------------
 export const PS2 = {
   RES_SCALE: 0.5,    // internal render resolution (0.5 = half-res, chunky pixels)

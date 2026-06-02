@@ -288,6 +288,8 @@ export class AudioSystem {
     eventBus.on(Events.BOOST, (d) => { if (d && d.isPlayer) this._sfxBoost(); });
     eventBus.on(Events.LAP_COMPLETED, () => this._sfxLap());
     eventBus.on(Events.RACE_FINISHED, (d) => this._sfxFinish(d && d.place === 1));
+    eventBus.on(Events.NEAR_MISS, (d) => this._sfxNearMiss(d ? d.combo : 1));
+    eventBus.on(Events.COMBO_RESET, () => this._sfxComboReset());
   }
 
   _sfxPickup() { this._note(880, this._t(), 0.09, 'square', 0.12, this.sfxGain); this._note(1320, this._t() + 0.09, 0.12, 'square', 0.12, this.sfxGain); }
@@ -296,6 +298,8 @@ export class AudioSystem {
   _sfxHit()    { this._noise(0.3, this._t(), 0.26, 'bandpass', 900, 200); this._note(150, this._t(), 0.26, 'square', 0.16, this.sfxGain); }
   _sfxBoost()  { this._noise(0.4, this._t(), 0.22, 'bandpass', 500, 2600); this._note(330, this._t(), 0.3, 'sawtooth', 0.07, this.sfxGain); }
   _sfxLap()    { this._note(784, this._t(), 0.12, 'square', 0.12, this.sfxGain); this._note(1175, this._t() + 0.1, 0.18, 'square', 0.12, this.sfxGain); }
+  _sfxNearMiss(combo) { this._note(700 + Math.min(combo || 1, 14) * 70, this._t(), 0.07, 'square', 0.08, this.sfxGain); }
+  _sfxComboReset() { const t = this._t(); this._note(320, t, 0.16, 'sawtooth', 0.11, this.sfxGain); this._note(190, t + 0.09, 0.22, 'sawtooth', 0.1, this.sfxGain); }
 
   _sfxFinish(won) {
     if (!this._live()) return;

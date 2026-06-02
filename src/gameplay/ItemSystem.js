@@ -12,16 +12,19 @@ import { makeItemBox, makeYuzu, makeBoostPadTexture } from './itemMeshes.js';
  * One item held at a time. The player uses via input; AI auto-use after a delay.
  */
 export class ItemSystem {
-  constructor(scene, track) {
+  constructor(scene, track, opts = {}) {
     this.scene = scene;
     this.track = track;
+    this.enabled = opts.enabled !== false; // free-cruise builds no boxes/pads
     this.boxes = [];
     this.projectiles = [];
     this.hazards = [];
     this.pads = [];
     this.orangeGltf = null; // set by Game once loaded; yuzu projectile clones it
-    this.buildBoxes();
-    this.buildPads();
+    if (this.enabled) {
+      this.buildBoxes();
+      this.buildPads();
+    }
   }
 
   /** Provide the orange GLB so thrown "shells" render as a tumbling yuzu. */

@@ -22,6 +22,10 @@ export const Events = {
   // Kart
   BOOST: 'kart:boost', // any boost fired (drift mini-turbo / melon / pad)
 
+  // Free-cruise (highway) scoring
+  NEAR_MISS: 'cruise:near-miss', // threaded close past a car (data: {points, combo})
+  COMBO_RESET: 'cruise:combo-reset', // crashed -> multiplier wiped
+
   // Menu
   MENU_SHOW: 'menu:show',
   MENU_HIDE: 'menu:hide',
