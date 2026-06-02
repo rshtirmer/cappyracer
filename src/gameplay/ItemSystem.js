@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ITEMS, BOOST_PAD, COLORS } from '../core/Constants.js';
+import { ITEMS, BOOST_PAD, COLORS, AI } from '../core/Constants.js';
 import { eventBus, Events } from '../core/EventBus.js';
 import { disposeObject3D } from '../core/disposeUtils.js';
 import { makeItemBox, makeYuzu, makeBoostPadTexture } from './itemMeshes.js';
@@ -71,13 +71,45 @@ export class ItemSystem {
     this.hazards.length = 0;
   }
 
-  grant(racer) {
-    const type = ITEMS.TYPES[Math.floor(Math.random() * ITEMS.TYPES.length)];
+  grant(racer, total = 6) {
+    const type = this._weightedItem(racer, total);
     racer.heldItem = type;
     if (racer.ai) {
       racer.itemUseTimer = ITEMS.AI_USE_MIN + Math.random() * (ITEMS.AI_USE_MAX - ITEMS.AI_USE_MIN);
     }
     eventBus.emit(Events.ITEM_PICKUP, { type, isPlayer: racer.isPlayer });
+  }
+
+  /**
+   * Position-weighted item draw (comeback logic): the leader mostly gets mud to
+   * drop behind them; trailing racers get more shells + melon boosts to claw back.
+   * `position` is 1 = leading; `total` = field size.
+   */
+  _weightedItem(racer, total) {
+    const f = total > 1 ? (Math.max(1, racer.position || 1) - 1) / (total - 1) : 0.5; // 0 leader .. 1 last
+    const weights = [
+      ['shell', 0.8 + 2.2 * f], // offense rises toward the back
+      ['melon', 0.5 + 2.5 * f], // comeback boost for the stragglers
+      ['mud', 1.5 - 1.0 * f],   // leaders drop more hazards behind them
+    ];
+    let sum = 0;
+    for (const w of weights) sum += w[1];
+    let roll = Math.random() * sum;
+    for (const [t, w] of weights) { roll -= w; if (roll <= 0) return t; }
+    return 'shell';
+  }
+
+  /** True if the player sits ahead of this AI within shell range + forward cone. */
+  _playerInAimCone(ai, player) {
+    if (!player || player === ai || player.kart.spinTimer > 0) return false;
+    const k = ai.kart;
+    const dx = player.kart.mesh.position.x - k.mesh.position.x;
+    const dz = player.kart.mesh.position.z - k.mesh.position.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist < 2 || dist > AI.SHELL_AIM_RANGE) return false;
+    const fx = -Math.sin(k.heading);
+    const fz = -Math.cos(k.heading);
+    return (dx * fx + dz * fz) / dist > AI.SHELL_AIM_DOT;
   }
 
   useItem(racer, racers) {
@@ -136,7 +168,7 @@ export class ItemSystem {
         for (const racer of racers) {
           if (racer.heldItem || (racer.kart.spinTimer > 0)) continue;
           if (dist2(racer.kart.mesh.position, box.pos) < ITEMS.BOX_PICKUP_DIST ** 2) {
-            this.grant(racer);
+            this.grant(racer, racers.length);
             box.active = false;
             box.respawn = ITEMS.BOX_RESPAWN;
             box.mesh.visible = false;
@@ -149,11 +181,16 @@ export class ItemSystem {
       }
     }
 
-    // AI auto-use.
+    // AI use: shells wait for the player to line up ahead (then fire, or give up
+    // after holding a bit); other items fire on the hold timer as before.
+    const player = racers[0];
     for (const racer of racers) {
-      if (racer.ai && racer.heldItem) {
-        racer.itemUseTimer -= delta;
-        if (racer.itemUseTimer <= 0) this.useItem(racer, racers);
+      if (!racer.ai || !racer.heldItem) continue;
+      racer.itemUseTimer -= delta;
+      if (racer.heldItem === 'shell') {
+        if (this._playerInAimCone(racer, player) || racer.itemUseTimer <= -2) this.useItem(racer, racers);
+      } else if (racer.itemUseTimer <= 0) {
+        this.useItem(racer, racers);
       }
     }
 

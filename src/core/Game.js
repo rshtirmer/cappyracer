@@ -507,7 +507,7 @@ export class Game {
     for (const racer of this.racers) {
       const input = racer.ai ? racer.ai.computeInput(racer.kart, this.track) : this.input;
       racer.kart.update(delta, input);
-      if (racer.ai) racer.ai.capSpeed(racer.kart);
+      if (racer.ai) racer.ai.capSpeed(racer.kart, racer.rubber || 1);
       this.updateRacerTrack(racer, delta);
     }
 
@@ -608,7 +608,12 @@ export class Game {
     }
   }
 
-  /** Separate any overlapping karts (circle-circle) and bleed a little speed. */
+  /**
+   * Separate overlapping karts (circle-circle). A bump bleeds speed in PROPORTION
+   * to how deep the overlap is — a graze barely slows you, a hard hit slows more —
+   * plus a tiny extra separation push so two karts riding side-by-side knock apart
+   * cleanly instead of velcro-sticking and draining speed every frame.
+   */
   resolveCollisions() {
     const r = AI.COLLIDE_DIST;
     const n = this.racers.length;
@@ -622,23 +627,36 @@ export class Game {
         if (d2 >= r * r) continue;
         let d = Math.sqrt(d2);
         if (d < 1e-4) { dx = 0.1; dz = 0; d = 0.1; }
-        const overlap = (r - d) / 2;
+        const depth = (r - d) / r;                 // 0 (grazing) .. 1 (concentric)
+        const push = (r - d) / 2 + AI.COLLIDE_BIAS; // fully separate + small pop
         const nx = dx / d;
         const nz = dz / d;
-        a.x -= nx * overlap; a.z -= nz * overlap;
-        b.x += nx * overlap; b.z += nz * overlap;
-        this.racers[i].kart.speed *= 0.92;
-        this.racers[j].kart.speed *= 0.92;
+        a.x -= nx * push; a.z -= nz * push;
+        b.x += nx * push; b.z += nz * push;
+        const bleed = 1 - AI.COLLIDE_BLEED * depth; // gentle, depth-scaled
+        this.racers[i].kart.speed *= bleed;
+        this.racers[j].kart.speed *= bleed;
       }
     }
   }
 
-  /** Rank racers by lap + progress; record the player's live position. */
+  /** Rank racers by lap + progress; record the player's live position + rubber-band. */
   updatePositions() {
     const ranked = this.racers
       .map((r) => ({ r, p: r.lapTracker.lap + r.lastProgress - (r.crossedStart ? 0 : 1) }))
       .sort((x, y) => y.p - x.p);
     ranked.forEach((e, i) => { e.r.position = i + 1; });
+
+    // Rubber-band each AI toward the player's race distance: behind -> faster,
+    // ahead -> slower, scaled by the gap (keeps the field racing close).
+    const pPlayer = this.racers[0].lapTracker.lap + this.racers[0].lastProgress
+      - (this.racers[0].crossedStart ? 0 : 1);
+    for (const e of ranked) {
+      if (!e.r.ai) { e.r.rubber = 1; continue; }
+      const gap = Math.max(-1, Math.min(1, (e.p - pPlayer) / AI.RUBBER_GAP));
+      e.r.rubber = 1 - gap * AI.RUBBER_MAX; // gap>0 (ahead) slows; gap<0 (behind) speeds
+    }
+
     gameState.position = this.racers[0].position;
     gameState.totalRacers = this.racers.length;
   }

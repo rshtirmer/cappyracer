@@ -1,4 +1,4 @@
-import { AI, KART, ITEMS } from '../core/Constants.js';
+import { AI, KART } from '../core/Constants.js';
 
 /**
  * Simple racing-line AI. Each frame it locates the kart on the track, aims at a
@@ -35,10 +35,14 @@ export class AIController {
     return this.input;
   }
 
-  /** Cap top speed to this rival's skill so the player can race them. */
-  capSpeed(kart) {
-    const boost = kart.boostTimer > 0 ? ITEMS.BOOST_MULT : 1;
-    const max = KART.MAX_SPEED * this.skill * kart.surfaceGrip * boost;
+  /**
+   * Cap top speed to this rival's skill so the player can race them. `rubber` is
+   * a rubber-band scale (>1 when this AI is behind the player, <1 when ahead) so
+   * the pack stays close.
+   */
+  capSpeed(kart, rubber = 1) {
+    const boost = kart.boostTimer > 0 ? kart.boostMult : 1;
+    const max = KART.MAX_SPEED * this.skill * kart.surfaceGrip * boost * rubber;
     if (kart.speed > max) kart.speed = max;
   }
 }

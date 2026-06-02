@@ -213,6 +213,18 @@ export const AI = {
   LANES: [-4.5, 4.5, -2, 2, 0],          // preferred lateral lane per AI
   SKILL: [0.98, 0.95, 0.93, 0.99, 0.91], // top-speed fraction per AI
   COLLIDE_DIST: 2.4,                      // kart-kart separation distance
+  // Collision feel: a bump bleeds speed in proportion to overlap depth (≈0 when
+  // grazing) instead of a flat per-frame drain, + a tiny extra separation push,
+  // so karts knock apart cleanly instead of velcro-sticking.
+  COLLIDE_BLEED: 0.16,                    // max speed bleed at full overlap
+  COLLIDE_BIAS: 0.04,                     // extra separation so they don't re-stick
+  // Rubber-banding: scale an AI's top speed by its race-distance gap to the
+  // player so the pack stays close (behind -> faster, ahead -> slower).
+  RUBBER_MAX: 0.12,                       // ± top-speed fraction at full gap
+  RUBBER_GAP: 0.6,                        // gap (in laps) where rubber-band maxes
+  // AI shell aiming: fire a held shell when the player sits ahead in this cone.
+  SHELL_AIM_RANGE: 26,                    // world units
+  SHELL_AIM_DOT: 0.8,                     // forward-cone cosine (~37°)
   GRID_ROW_GAP: 4.5,                      // distance between grid rows
   GRID_LANE: 3.2,                         // lateral offset of grid columns
   GRID_START_BACK: 4,                     // first row distance behind the line
