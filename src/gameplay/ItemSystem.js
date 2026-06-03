@@ -140,7 +140,7 @@ export class ItemSystem {
       mesh.position.set(p.x - fx * 2.5, 0.08, p.z - fz * 2.5);
       mesh.userData.noPS2 = true;
       this.scene.add(mesh);
-      this.hazards.push({ mesh, pos: mesh.position, life: ITEMS.MUD_LIFE });
+      this.hazards.push({ mesh, pos: mesh.position, life: ITEMS.MUD_LIFE, owner: racer });
     }
     eventBus.emit(Events.ITEM_USED, { type, isPlayer: racer.isPlayer });
   }
@@ -208,6 +208,10 @@ export class ItemSystem {
       let hit = false;
       for (const racer of racers) {
         if (racer === pr.owner || racer.kart.spinTimer > 0) continue;
+        // Only the PLAYER's shells cause carnage — AI shells pass through fellow
+        // rivals (otherwise the pack spins itself out in a clump). The player is
+        // the sole agent of chaos.
+        if (!pr.owner.isPlayer && !racer.isPlayer) continue;
         if (dist2(racer.kart.mesh.position, pr.mesh.position) < ITEMS.SHELL_HIT_DIST ** 2) {
           racer.kart.spinOut(ITEMS.SPIN_TIME);
           eventBus.emit(Events.ITEM_HIT, { type: 'shell', isPlayer: racer.isPlayer });
@@ -228,6 +232,9 @@ export class ItemSystem {
       hz.life -= delta;
       for (const racer of racers) {
         if (racer.kart.spinTimer > 0) continue;
+        // AI mud doesn't slip fellow rivals — only the player's does (and the
+        // player shrugs slips off anyway). Keeps the pack from self-destructing.
+        if (hz.owner && !hz.owner.isPlayer && !racer.isPlayer) continue;
         if (dist2(racer.kart.mesh.position, hz.pos) < ITEMS.MUD_HIT_DIST ** 2) {
           racer.kart.spinOut(ITEMS.MUD_SPIN_TIME);
           eventBus.emit(Events.ITEM_HIT, { type: 'mud', isPlayer: racer.isPlayer });

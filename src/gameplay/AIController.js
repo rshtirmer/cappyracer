@@ -11,9 +11,10 @@ export class AIController {
     this.lane = lane;
     this.skill = skill;
     this.input = { moveX: 0, moveZ: 0 };
+    this.wobblePhase = Math.random() * Math.PI * 2; // desync each rival's weave
   }
 
-  computeInput(kart, track) {
+  computeInput(kart, track, obstacles) {
     const loc = track.locate(kart.mesh.position);
     const n = track.samples.length;
     const ahead = track.samples[(loc.index + AI.LOOKAHEAD) % n];
@@ -29,10 +30,37 @@ export class AIController {
     let diff = desired - kart.heading;
     diff = Math.atan2(Math.sin(diff), Math.cos(diff)); // wrap to [-pi, pi]
 
-    this.input.moveX = Math.max(-1, Math.min(1, -diff * AI.STEER_GAIN));
-    const throttle = 1 - 0.5 * Math.min(1, Math.abs(diff)); // ease off in corners
+    // Twitchy: a bit of over-correction + a subtle weave so they look loose
+    // (the frantic-sprinter energy the calm capybara lacks).
+    this.wobblePhase += AI.WOBBLE_RATE;
+    let steer = -diff * AI.STEER_GAIN + Math.sin(this.wobblePhase) * AI.WOBBLE;
+
+    // Swerve around track props in front so they don't pile up on the same one.
+    if (obstacles) steer += this.avoidObstacles(kart, obstacles);
+
+    this.input.moveX = Math.max(-1, Math.min(1, steer));
+    // Lift a little in corners -> they carry too much speed in and occasionally run wide.
+    const throttle = 1 - AI.CORNER_LIFT * Math.min(1, Math.abs(diff));
     this.input.moveZ = -throttle; // negative moveZ = accelerate
     return this.input;
+  }
+
+  /** Steering nudge to dodge any non-toppled obstacle in front of this kart. */
+  avoidObstacles(kart, obstacles) {
+    const fx = -Math.sin(kart.heading), fz = -Math.cos(kart.heading);
+    let push = 0;
+    for (const ob of obstacles) {
+      if (ob.toppled) continue;
+      const dx = ob.x - kart.mesh.position.x;
+      const dz = ob.z - kart.mesh.position.z;
+      const dist = Math.hypot(dx, dz);
+      if (dist > AI.AVOID_RANGE || dist < 0.1) continue;
+      if ((dx * fx + dz * fz) / dist < 0.5) continue;       // only dodge what's ahead
+      const lateral = -dx * fz + dz * fx;                   // >0 = prop is to the right
+      const strength = AI.AVOID_GAIN * (1 - dist / AI.AVOID_RANGE);
+      push += (lateral > 0 ? -1 : 1) * strength;            // steer away from it
+    }
+    return push;
   }
 
   /**

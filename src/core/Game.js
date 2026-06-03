@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GAME, CAMERA, COLORS, TRACK, RACE, KART, FX, MODELS, RIVAL_ROSTER, PS2, BLOOM, AI, LEVEL, FLOW, BUMP } from './Constants.js';
+import { GAME, CAMERA, COLORS, TRACK, RACE, KART, FX, MODELS, RIVAL_ROSTER, PS2, BLOOM, AI, LEVEL, FLOW, BUMP, OBSTACLES } from './Constants.js';
 import { Save } from './Save.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
@@ -374,6 +374,7 @@ export class Game {
       r.heldItem = null;
     });
     this.items.reset();
+    if (this.scenery && this.scenery.resetObstacles) this.scenery.resetObstacles();
     this.snapCameraToKart();
     this.hud.show();
     this.hud.setCountdown(String(RACE.COUNTDOWN));
@@ -491,7 +492,10 @@ export class Game {
 
     // Ambient world life runs even on the menu.
     this.sky.update(delta);
-    if (this.scenery) this.scenery.emitSteam(this.particles, delta, FX.STEAM_RATE);
+    if (this.scenery) {
+      this.scenery.emitSteam(this.particles, delta, FX.STEAM_RATE);
+      if (this.scenery.update) this.scenery.update(delta); // topple animations
+    }
     this.particles.update(delta);
     // Highway traffic circulates always; only clips the player while racing.
     if (this.traffic) {
@@ -540,8 +544,9 @@ export class Game {
   /** One simulation step for the whole field. */
   updateRace(delta) {
     gameState.raceTime += delta;
+    const obstacles = this.scenery ? this.scenery.obstacles : null;
     for (const racer of this.racers) {
-      const input = racer.ai ? racer.ai.computeInput(racer.kart, this.track) : this.input;
+      const input = racer.ai ? racer.ai.computeInput(racer.kart, this.track, obstacles) : this.input;
       racer.kart.update(delta, input);
       if (racer.ai) racer.ai.capSpeed(racer.kart, racer.rubber || 1);
       this.updateRacerTrack(racer, delta);
@@ -556,6 +561,7 @@ export class Game {
     this.player.setHeldVisual(player.heldItem === 'shell');
 
     this.resolveCollisions();
+    this.collideObstacles();
     this.updatePositions();
     this.emitDust(delta);     // player only
     this.updateCamera(delta); // follows the player
@@ -606,15 +612,25 @@ export class Game {
 
     // Wall: clamp the lateral excess back onto the wall band, bleed speed.
     const half = this.track.wallHalf;
-    if (loc.offset > half || loc.offset < -half) {
+    if (kart._wipeoutCd > 0) kart._wipeoutCd -= delta;
+    const beyondWall = loc.offset > half || loc.offset < -half;
+    if (beyondWall) {
       const clamped = Math.max(-half, Math.min(half, loc.offset));
       const excess = loc.offset - clamped;
       const s = this.track.samples[loc.index];
       kart.mesh.position.x -= s.normal.x * excess;
       kart.mesh.position.z -= s.normal.z * excess;
+      const wallSpeed = Math.abs(kart.speed);
       kart.speed *= TRACK.WALL_SPEED_KEEP;
-      if (racer.isPlayer) kart.loseFlow(FLOW.WALL_LOSS); // a bonk breaks your serene roll
+      if (racer.isPlayer) {
+        kart.loseFlow(FLOW.WALL_LOSS);                          // a bonk breaks your serene roll
+      } else if (!kart._wallWas && wallSpeed > AI.WIPEOUT_SPEED // rising edge only
+                 && kart._wipeoutCd <= 0 && Math.random() < AI.WIPEOUT_CHANCE) {
+        kart.spinOut(AI.WIPEOUT_SPIN);                          // reckless rival occasionally eats the wall
+        kart._wipeoutCd = AI.WIPEOUT_COOLDOWN;
+      }
     }
+    kart._wallWas = beyondWall;
 
     const onTrack = Math.abs(loc.offset) <= this.track.roadHalf;
     kart.surfaceGrip = onTrack ? 1 : TRACK.OFFTRACK_GRIP;
@@ -671,12 +687,14 @@ export class Game {
         const nx = dx / d;
         const nz = dz / d;
 
-        if (ra.isPlayer || rb.isPlayer) {
-          // The boulder plows the rival. `sign` points from player -> rival.
-          const player = ra.isPlayer ? ra : rb;
+        const player = ra.isPlayer ? ra : (rb.isPlayer ? rb : null);
+        // PLOW only once the boulder is actually rolling — below PLOW_MIN_SPEED a
+        // contact falls through to the ordinary bump, so you can't fling the grid
+        // at the start line.
+        if (player && player.kart.speed >= BUMP.PLOW_MIN_SPEED) {
           const rival = ra.isPlayer ? rb : ra;
           const sign = ra.isPlayer ? 1 : -1; // (nx,nz) is a->b; orient away from the player
-          rival.kart.launch(nx * sign, nz * sign);
+          rival.kart.launch(nx * sign, nz * sign, player.kart.speed);
           player.kart.speed *= BUMP.PLAYER_KEEP; // immovable: barely slows
           // Shove only the rival clear so the boulder never gets nudged off-line.
           const push = (r - d) + AI.COLLIDE_BIAS;
@@ -694,6 +712,65 @@ export class Game {
         ra.kart.speed *= bleed;
         rb.kart.speed *= bleed;
       }
+    }
+  }
+
+  /**
+   * Track-obstacle collisions. The boulder (rolling fast) SMASHES a prop —
+   * topples it + a debris puff for a tiny flow nick. Too slow and you BONK
+   * (bounce + big flow loss). Reckless rivals that clip a prop wipe out (spin),
+   * leaving the prop standing for you to flatten.
+   */
+  collideObstacles() {
+    const sc = this.scenery;
+    if (!sc || !sc.obstacles) return;
+    const reach = OBSTACLES.R + OBSTACLES.HIT_PAD;
+    for (const ob of sc.obstacles) {
+      if (ob.toppled) continue;
+      for (const racer of this.racers) {
+        const k = racer.kart;
+        if (k.spinTimer > 0) continue;
+        const dx = k.mesh.position.x - ob.x;
+        const dz = k.mesh.position.z - ob.z;
+        const d2 = dx * dx + dz * dz;
+        if (d2 >= reach * reach) continue;
+        const d = Math.sqrt(d2) || 0.001;
+        const nx = dx / d, nz = dz / d;
+        if (racer.isPlayer) {
+          if (k.speed >= BUMP.PLOW_MIN_SPEED) {
+            sc.topple(ob, -nx, -nz);                 // smash it away from the boulder
+            k.loseFlow(OBSTACLES.PLOW_FLOW_LOSS);
+            this.emitDebris(ob.x, ob.z);
+            eventBus.emit(Events.ITEM_HIT, { type: 'smash', isPlayer: true });
+          } else {
+            k.mesh.position.x += nx * (reach - d);   // too slow: bonk + bounce out
+            k.mesh.position.z += nz * (reach - d);
+            k.speed *= OBSTACLES.BONK_SPEED_KEEP;
+            k.loseFlow(OBSTACLES.BONK_FLOW_LOSS);
+          }
+        } else {
+          // Rivals just get nudged + slowed (no spin) — they were crashing the
+          // same prop every lap and spinning the whole field out. They mostly
+          // steer around these anyway (AIController.avoidObstacles).
+          k.mesh.position.x += nx * (reach - d);
+          k.mesh.position.z += nz * (reach - d);
+          k.speed *= OBSTACLES.RIVAL_SPEED_KEEP;
+        }
+        break; // one interaction per obstacle per frame
+      }
+    }
+  }
+
+  /** A puff of debris where a prop got smashed. */
+  emitDebris(x, z) {
+    for (let i = 0; i < 12; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = 3 + Math.random() * 4;
+      this.particles.emit(
+        x, 1.0, z,
+        Math.cos(a) * sp, 3 + Math.random() * 4, Math.sin(a) * sp,
+        COLORS.DUST, FX.DUST_LIFE * 1.4, FX.DUST_SIZE * 1.2
+      );
     }
   }
 

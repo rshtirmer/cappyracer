@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ENV, ENV_PRESETS, COLORS } from '../core/Constants.js';
+import { ENV, ENV_PRESETS, COLORS, OBSTACLES } from '../core/Constants.js';
 
 /** Tiny seeded RNG so scenery layout is stable across reloads/screenshots. */
 function mulberry32(seed) {
@@ -67,6 +67,76 @@ export class Scenery {
       this.buildRocks();
       this.buildHotSprings();
       this.buildPSXProps();
+      this.buildTrackObstacles();
+    }
+  }
+
+  /**
+   * Solid, smashable props placed ON the racing line (road shoulders). Collision
+   * response + the boulder/rival rules live in Game; Scenery owns the props, the
+   * topple animation, and reset. Each obstacle: { x, z, group, baseY, baseQuat,
+   * toppled, t, axis }.
+   */
+  buildTrackObstacles() {
+    this.obstacles = [];
+    if (!this.track.pointAt) return;
+    for (const def of OBSTACLES.SPRINGS) {
+      const gltf = this.models[def.model];
+      if (!gltf) continue;
+      const s = this.track.pointAt(def.progress);
+      let nx = s.tan.z, nz = -s.tan.x;               // lateral normal in XZ
+      const nl = Math.hypot(nx, nz) || 1; nx /= nl; nz /= nl;
+      const x = s.pos.x + nx * def.offset;
+      const z = s.pos.z + nz * def.offset;
+
+      const group = new THREE.Group();
+      for (const part of bakeUnitParts(gltf)) {       // unit-height baked parts
+        const mesh = new THREE.Mesh(part.geometry, part.material);
+        mesh.castShadow = true; mesh.receiveShadow = true;
+        mesh.userData.sharedMaterial = true;          // material borrowed from the gltf
+        group.add(mesh);
+      }
+      group.scale.setScalar(1.7);
+      group.position.set(x, 0, z);
+      group.rotation.y = this.rng() * Math.PI * 2;
+      this.scene.add(group);
+      this.obstacles.push({ x, z, group, baseY: 0, baseQuat: group.quaternion.clone(), toppled: false, t: 0, axis: null });
+    }
+  }
+
+  /** Knock a smashed obstacle over in the impact direction (fx,fz). */
+  topple(ob, fx, fz) {
+    if (ob.toppled) return;
+    ob.toppled = true; ob.t = 0;
+    ob.axis = new THREE.Vector3(fz, 0, -fx);          // horizontal axis ⟂ to the fall
+    if (ob.axis.lengthSq() < 1e-6) ob.axis.set(1, 0, 0);
+    ob.axis.normalize();
+    (this._toppling ||= []).push(ob);
+  }
+
+  /** Advance any in-progress topple animations (called each frame from Game). */
+  update(delta) {
+    if (!this._toppling || !this._toppling.length) return;
+    const tq = new THREE.Quaternion();
+    for (let i = this._toppling.length - 1; i >= 0; i--) {
+      const ob = this._toppling[i];
+      ob.t = Math.min(1, ob.t + delta / OBSTACLES.TOPPLE_TIME);
+      const e = 1 - Math.pow(1 - ob.t, 3);            // ease-out
+      tq.setFromAxisAngle(ob.axis, e * Math.PI * 0.48);
+      ob.group.quaternion.copy(tq).multiply(ob.baseQuat);
+      ob.group.position.y = ob.baseY - e * 0.12;
+      if (ob.t >= 1) this._toppling.splice(i, 1);
+    }
+  }
+
+  /** Stand every obstacle back up (called on race restart). */
+  resetObstacles() {
+    if (!this.obstacles) return;
+    this._toppling = [];
+    for (const ob of this.obstacles) {
+      ob.toppled = false; ob.t = 0;
+      ob.group.position.y = ob.baseY;
+      ob.group.quaternion.copy(ob.baseQuat);
     }
   }
 

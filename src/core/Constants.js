@@ -212,14 +212,43 @@ export const FLOW = {
 };
 
 // --- Bump: the immovable boulder plows fragile rivals ------------------------
-// When the player contacts a rival, the rival gets launched + spun while the
-// player barely slows. This is the money shot — bodies flying, capy unbothered.
+// When a rolling player contacts a rival, the rival gets launched + spun while
+// the player barely slows. This is the money shot — bodies flying, capy
+// unbothered. But you must have EARNED the momentum: below PLOW_MIN_SPEED a
+// contact is just an ordinary bump (so you can't fling the whole grid at the
+// start line). Launch height scales with how fast the boulder is going.
 export const BUMP = {
-  LAUNCH_VY: 11,      // upward pop velocity on a plow
+  PLOW_MIN_SPEED: 30, // must be rolling at least this fast to launch a rival (kills the start-line exploit)
+  LAUNCH_VY: 13,      // base upward pop velocity at PLOW_MIN_SPEED
+  LAUNCH_VY_MAX: 26,  // upward pop at full boulder speed (a proper into-the-sky arc)
   GRAVITY: 30,        // pulls a launched rival back down
   LAUNCH_PUSH: 1.4,   // extra separation shove away from the boulder
-  LAUNCH_SPIN: 1.7,   // spin-out time for a plowed rival
+  LAUNCH_SPIN: 1.9,   // spin-out time for a plowed rival
   PLAYER_KEEP: 0.99,  // player retains ~all speed on contact (immovable)
+};
+
+// --- Track obstacles: smashable props ON the racing line ---------------------
+// Solid props sitting on the road shoulders. The boulder SMASHES through them
+// (they topple + a debris puff) for a tiny flow nick; hit one too slow and you
+// BONK (bounce + big flow loss). Reckless rivals that clip one wipe out — the
+// chaos the player serenely rolls past. `progress`/`offset` place each on the
+// loop (offset = lateral world units from the centerline; |offset| < road half).
+export const OBSTACLES = {
+  R: 1.5,             // collision radius
+  HIT_PAD: 1.2,       // + kart radius for the contact test
+  TOPPLE_TIME: 0.55,  // seconds for a smashed prop to fall over
+  PLOW_FLOW_LOSS: 0.07,// flow nicked when the boulder smashes through
+  BONK_FLOW_LOSS: 0.4, // flow lost if you hit one too slow to plow
+  BONK_SPEED_KEEP: 0.5,// speed retained on a slow bonk
+  RIVAL_SPEED_KEEP: 0.6,// a rival that clips one just slows (no spin — they mostly dodge anyway)
+  SPRINGS: [
+    { progress: 0.16, offset: 4.5,  model: 'barrel' },
+    { progress: 0.30, offset: -5.0, model: 'crate' },
+    { progress: 0.46, offset: 3.5,  model: 'barrel' },
+    { progress: 0.61, offset: -4.0, model: 'crate' },
+    { progress: 0.78, offset: 5.0,  model: 'barrel' },
+    { progress: 0.90, offset: -3.5, model: 'barrel' },
+  ],
 };
 
 // --- Items / power-ups -------------------------------------------------------
@@ -247,7 +276,23 @@ export const ITEMS = {
 export const AI = {
   COUNT: 5,
   LOOKAHEAD: 16,        // centerline samples ahead to steer toward
-  STEER_GAIN: 1.7,
+  // Reckless tuning: the rivals are loose, slightly-twitchy tryhards who lift
+  // late and occasionally over-cook a corner into the wall — an OCCASIONAL
+  // spectacular wipeout, not a constant spin-fest. They steer AROUND track props
+  // (AVOID_*) so they don't pile up on the same obstacle every lap.
+  STEER_GAIN: 1.8,      // near the original composed value; mostly clean lines
+  WOBBLE: 0.04,         // a hint of weave so they look loose, not robotic
+  WOBBLE_RATE: 0.07,    // weave advance per frame
+  CORNER_LIFT: 0.5,     // lift properly in corners — they rarely overcook into a wall now
+  // Wall wipeout fires only on the RISING EDGE of a hard wall hit (not every
+  // frame scraping it), gated by a chance + a per-rival cooldown -> a genuinely
+  // OCCASIONAL spectacular crash you blow past, not a constant spin-fest.
+  WIPEOUT_SPEED: 31,    // only a near-top-speed wall slam can spin them out
+  WIPEOUT_CHANCE: 0.2,  // chance per fresh hard hit — an occasional wall crash for flavor
+  WIPEOUT_COOLDOWN: 16, // long: a given rival wipes out at most ~once a lap (decouples from wall-scrape spam)
+  WIPEOUT_SPIN: 1.1,    // crash spin-out duration
+  AVOID_RANGE: 15,      // start steering around a track prop within this distance ahead
+  AVOID_GAIN: 1.3,      // how hard they swerve to dodge a prop
   LANES: [-4.5, 4.5, -2, 2, 0],          // preferred lateral lane per AI
   SKILL: [0.98, 0.95, 0.93, 0.99, 0.91], // top-speed fraction per AI
   COLLIDE_DIST: 2.4,                      // kart-kart separation distance

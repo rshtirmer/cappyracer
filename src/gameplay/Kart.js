@@ -32,6 +32,8 @@ export class Kart {
     this.usesFlow = false;          // only the player snowballs; rivals run flat-fast
     this.airVY = 0;                 // vertical velocity while launched (plowed rivals pop up)
     this.launched = false;          // true mid-air after the boulder plows this kart
+    this._wallWas = false;          // was beyond the wall last frame (rising-edge wipeout detect)
+    this._wipeoutCd = 0;            // cooldown before this rival can wall-wipeout again
     this.isPlayerKart = false;      // set true for the human's kart (gates SFX)
 
     this.mesh = this.buildMesh();
@@ -374,10 +376,15 @@ export class Kart {
     this.speed *= 0.35;
   }
 
-  /** Plowed by the boulder: launch into the air, tumble, and spin out. */
-  launch(dirx, dirz) {
+  /**
+   * Plowed by the boulder: launch into the air, tumble, and spin out. The faster
+   * the boulder was rolling (`bySpeed`), the higher the pop — a full-flow hit
+   * sends them properly into the sky.
+   */
+  launch(dirx, dirz, bySpeed = BUMP.PLOW_MIN_SPEED) {
+    const t = Math.min(1, Math.max(0, (bySpeed - BUMP.PLOW_MIN_SPEED) / (FLOW.BOULDER_SPEED - BUMP.PLOW_MIN_SPEED)));
     this.launched = true;
-    this.airVY = BUMP.LAUNCH_VY;
+    this.airVY = BUMP.LAUNCH_VY + (BUMP.LAUNCH_VY_MAX - BUMP.LAUNCH_VY) * t;
     this.spinTimer = Math.max(this.spinTimer, BUMP.LAUNCH_SPIN);
     this.speed *= 0.3;
     this.mesh.position.x += dirx * BUMP.LAUNCH_PUSH;
@@ -402,6 +409,8 @@ export class Kart {
     this.flow = 0;
     this.airVY = 0;
     this.launched = false;
+    this._wallWas = false;
+    this._wipeoutCd = 0;
     this.mesh.position.set(KART.START_X, KART.START_Y, KART.START_Z);
     this.mesh.rotation.set(0, this.heading, 0);
   }
