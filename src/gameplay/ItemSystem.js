@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ITEMS, BOOST_PAD, COLORS, AI } from '../core/Constants.js';
+import { ITEMS, BOOST_PAD, COLORS, AI, CALM } from '../core/Constants.js';
 import { eventBus, Events } from '../core/EventBus.js';
 import { disposeObject3D } from '../core/disposeUtils.js';
 import { makeItemBox, makeYuzu, makeBoostPadTexture } from './itemMeshes.js';
@@ -153,12 +153,14 @@ export class ItemSystem {
       pad.mesh.material.opacity = 0.7 + 0.3 * Math.abs(Math.sin(this._t * 5));
       for (const racer of racers) {
         const kart = racer.kart;
+        if (dist2(kart.mesh.position, pad.pos) >= BOOST_PAD.RADIUS ** 2) continue;
+        // A hot-spring soak restores calm continuously while you're on it...
+        kart.soothe(CALM.SOAK * delta);
+        // ...and still gives the classic speed burst (cooldown-gated).
         if (kart.padCooldown > 0) continue;
-        if (dist2(kart.mesh.position, pad.pos) < BOOST_PAD.RADIUS ** 2) {
-          kart.applyBoost(BOOST_PAD.BOOST_MULT, BOOST_PAD.BOOST_TIME);
-          kart.padCooldown = BOOST_PAD.COOLDOWN;
-          eventBus.emit(Events.ITEM_HIT, { type: 'pad', isPlayer: racer.isPlayer });
-        }
+        kart.applyBoost(BOOST_PAD.BOOST_MULT, BOOST_PAD.BOOST_TIME);
+        kart.padCooldown = BOOST_PAD.COOLDOWN;
+        eventBus.emit(Events.ITEM_HIT, { type: 'pad', isPlayer: racer.isPlayer });
       }
     }
 

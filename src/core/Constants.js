@@ -124,6 +124,10 @@ export const COLORS = {
   MUD: 0x6b4a2b,
   MELON: 0x4caf50,
   BOOST_PAD: 0x49d6ff,
+  // Stressors (heart-rate spikers)
+  STRESS_ZONE: 0xff3b5c,   // danger ring on the ground
+  FIREWORK: 0xffd54a,      // firework sparks
+  CHIHUAHUA: 0xe8d8b0,     // little yappy dog
 };
 
 export const LEVEL = {
@@ -182,6 +186,35 @@ export const BOOST_PAD = {
   BOOST_MULT: 1.4,
   BOOST_TIME: 1.1,
   COOLDOWN: 2,
+};
+
+// --- Calm = speed (the inversion) --------------------------------------------
+// The capybara goes faster the more relaxed it stays. `calm` is a 0..1 meter
+// that scales the player's top speed (see Kart.update). Stressors drain it;
+// serenity (and hot-spring soaks) restore it. A floor keeps you cruising even
+// when rattled so you never fully stall.
+export const CALM = {
+  START: 1.0,        // calm at the line — fully zen
+  MIN: 0.4,          // floor: even max-stress keeps 40% top speed (never a crawl)
+  RECOVER: 0.16,     // calm regained per second of serenity (~3.75s 0.4->1.0)
+  RECOVER_DELAY: 0.5,// seconds after the last stress before recovery kicks in
+  SOAK: 0.5,         // calm restored per second while soaking a hot spring (boost pad)
+  // Speed maps linearly from calm: at calm=1 you get full MAX_SPEED, at calm=MIN
+  // you're floored. (maxFwd *= calm — see Kart.js.)
+};
+
+// --- Stressors (the new hazard content) --------------------------------------
+// Trigger volumes on the track that spike your heart rate (drain calm) while
+// you're inside them. Same proximity pattern as boost pads, opposite effect.
+// `type` picks the visual; `progress` is where it sits on the loop.
+export const STRESSOR = {
+  RADIUS: 6,         // how close before it rattles you
+  DRAIN: 0.55,       // calm drained per second while inside the radius
+  // Per-track placement. Only the easy track is dressed for the prototype.
+  SPRINGS: [
+    { type: 'firework', progress: 0.40 },
+    { type: 'chihuahua', progress: 0.70 },
+  ],
 };
 
 // --- Items / power-ups -------------------------------------------------------

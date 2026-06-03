@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GAME, CAMERA, COLORS, TRACK, RACE, KART, FX, MODELS, RIVAL_ROSTER, PS2, BLOOM, AI, LEVEL } from './Constants.js';
+import { GAME, CAMERA, COLORS, TRACK, RACE, KART, FX, MODELS, RIVAL_ROSTER, PS2, BLOOM, AI, LEVEL, STRESSOR } from './Constants.js';
 import { Save } from './Save.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
@@ -15,6 +15,7 @@ import { LapTracker } from '../gameplay/LapTracker.js';
 import { AIController } from '../gameplay/AIController.js';
 import { gridPose } from '../gameplay/grid.js';
 import { ItemSystem } from '../gameplay/ItemSystem.js';
+import { Stressors } from '../gameplay/Stressors.js';
 import { Traffic } from '../gameplay/Traffic.js';
 import { LevelBuilder } from '../level/LevelBuilder.js';
 import { Track } from '../level/Track.js';
@@ -209,6 +210,10 @@ export class Game {
     // Free-cruise has no power-ups; cup tracks do.
     this.items = new ItemSystem(this.worldGroup, this.track, { enabled: !def.endless });
     if (this.orangeGltf) this.items.setYuzu(this.orangeGltf);
+    // Stressors (calm-drain hazards). Prototype: only the easy track is dressed.
+    this.stressors = (!def.endless && def.id === 'springs')
+      ? new Stressors(this.worldGroup, this.track, this.particles, STRESSOR.SPRINGS)
+      : null;
     this.sky = new Sky(this.worldGroup, theme);
     // Highway "no-hesi" traffic to weave through; `cruise` enables near-miss scoring.
     this.traffic = def.env === 'highway'
@@ -262,6 +267,7 @@ export class Game {
     this.worldGroup = null;
     this.scenery = null;
     this.traffic = null;
+    this.stressors = null;
   }
 
   /** Switch to track `index` in place (rebuild the world, re-grid the field). */
@@ -374,6 +380,7 @@ export class Game {
       r.heldItem = null;
     });
     this.items.reset();
+    if (this.stressors) this.stressors.reset();
     this.snapCameraToKart();
     this.hud.show();
     this.hud.setCountdown(String(RACE.COUNTDOWN));
@@ -550,6 +557,7 @@ export class Game {
     const player = this.racers[0];
     if (this.input.consumeUse() && player.heldItem) this.items.useItem(player, this.racers);
     this.items.update(delta, this.racers);
+    if (this.stressors) this.stressors.update(delta, this.racers);
     gameState.heldItem = player.heldItem;
     // The head orange IS the throwable yuzu — show it only while holding one.
     this.player.setHeldVisual(player.heldItem === 'shell');
@@ -637,6 +645,7 @@ export class Game {
       gameState.speed = kart.speed;          // engine-pitch source for audio
       gameState.drifting = kart.drifting;     // drift-charge whine source
       gameState.driftCharge = kart.driftCharge;
+      gameState.calm = kart.calm;             // serenity meter (HUD bar + heartbeat)
       if (completed && !racer.finished) {
         eventBus.emit(Events.LAP_COMPLETED, { lap: racer.lapTracker.lap, total: this.laps });
       }
@@ -850,6 +859,7 @@ export class Game {
       offset: +gameState.offset.toFixed(2),
       raceTime: +gameState.raceTime.toFixed(2),
       speed: k ? +k.speed.toFixed(3) : 0,
+      calm: k ? +k.calm.toFixed(3) : 1,
       heading: k ? +k.heading.toFixed(3) : 0,
       drift: k ? { active: k.drifting, charge: +k.driftCharge.toFixed(3) } : null,
       boost: k ? +k.boostTimer.toFixed(3) : 0,

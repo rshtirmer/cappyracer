@@ -66,6 +66,22 @@ export class HUD {
       pos +
       `<div style="font-size:26px">LAP ${lap}/${total}${offTrack}</div>` +
       `<div style="font-size:22px;opacity:0.9">${formatTime(state.raceTime)}</div>` +
+      this.calmBar(state.calm == null ? 1 : state.calm) +
       item;
+  }
+
+  /** Serenity meter: full + cyan when zen (fast), shrinking + red when rattled. */
+  calmBar(calm) {
+    const pct = Math.round(calm * 100);
+    // cyan-calm (#49d6ff) -> amber -> red as serenity drops.
+    const color = calm > 0.66 ? '#49d6ff' : calm > 0.45 ? '#ffd54a' : '#ff3b5c';
+    const heart = calm > 0.66 ? '😌' : calm > 0.45 ? '😬' : '😱';
+    return (
+      `<div style="margin-top:8px;font-size:13px;letter-spacing:2px;opacity:.85">${heart} CALM</div>` +
+      `<div style="width:170px;height:12px;border-radius:7px;background:rgba(0,0,0,.35);` +
+      `box-shadow:inset 0 0 0 1px rgba(255,255,255,.25);overflow:hidden;margin-top:2px">` +
+      `<div style="width:${pct}%;height:100%;background:${color};` +
+      `box-shadow:0 0 8px ${color};transition:width .12s linear,background .2s"></div></div>`
+    );
   }
 }

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
-import { KART, COLORS, ITEMS, DRIFT } from '../core/Constants.js';
+import { KART, COLORS, ITEMS, DRIFT, CALM } from '../core/Constants.js';
 import { disposeObject3D, markShared } from '../core/disposeUtils.js';
 import { eventBus, Events } from '../core/EventBus.js';
 
@@ -28,6 +28,8 @@ export class Kart {
     this.driftDir = 0;              // -1 / +1 : the locked slide direction
     this.driftCharge = 0;           // seconds held in a clean drift
     this.padCooldown = 0;           // boost-pad re-trigger cooldown
+    this.calm = CALM.START;         // 0..1 serenity — scales top speed (the inversion)
+    this._stressedT = 0;            // >0 = recently stressed, recovery paused
     this.isPlayerKart = false;      // set true for the human's kart (gates SFX)
 
     this.mesh = this.buildMesh();
@@ -61,9 +63,16 @@ export class Kart {
       if (this.speed > 0) this.speed = Math.max(0, this.speed - KART.DRAG * delta);
       else if (this.speed < 0) this.speed = Math.min(0, this.speed + KART.DRAG * delta);
     }
-    // Surface grip caps speed; a boost (melon/drift/pad) raises the cap briefly.
+    // Serenity recovers when you're not being rattled (calm = fast). Stressors
+    // set _stressedT to pause recovery briefly so the dip reads as a real hit.
+    if (this._stressedT > 0) this._stressedT -= delta;
+    else this.calm = Math.min(1, this.calm + CALM.RECOVER * delta);
+
+    // THE INVERSION: top speed is gated by calm. A fully zen capybara hits full
+    // MAX_SPEED (and edges out the panicking AI); a stressed one is floored.
+    // Surface grip + boosts still stack on top.
     const boost = this.boostTimer > 0 ? this.boostMult : 1;
-    const maxFwd = KART.MAX_SPEED * this.surfaceGrip * boost;
+    const maxFwd = KART.MAX_SPEED * this.surfaceGrip * boost * this.calm;
     const maxRev = KART.MAX_REVERSE * this.surfaceGrip;
     this.speed = Math.max(-maxRev, Math.min(maxFwd, this.speed));
     if (this.boostTimer > 0) this.boostTimer -= delta;
@@ -325,6 +334,17 @@ export class Kart {
     this.driftCharge = 0;
   }
 
+  /** Spike the heart rate: drain calm (floored at MIN) + pause recovery. */
+  stress(amount) {
+    this.calm = Math.max(CALM.MIN, this.calm - amount);
+    this._stressedT = CALM.RECOVER_DELAY;
+  }
+
+  /** Soak it in: restore calm toward fully zen (hot-spring soak / melon). */
+  soothe(amount) {
+    this.calm = Math.min(1, this.calm + amount);
+  }
+
   /** Knock this kart into a spin-out for `time` seconds. */
   spinOut(time) {
     this.spinTimer = Math.max(this.spinTimer, time);
@@ -346,6 +366,8 @@ export class Kart {
     this.driftDir = 0;
     this.driftCharge = 0;
     this.padCooldown = 0;
+    this.calm = CALM.START;
+    this._stressedT = 0;
     this.mesh.position.set(KART.START_X, KART.START_Y, KART.START_Z);
     this.mesh.rotation.set(0, this.heading, 0);
   }
