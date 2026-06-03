@@ -13,11 +13,13 @@ import { AudioSystem } from '../systems/AudioSystem.js';
 import { Kart } from '../gameplay/Kart.js';
 import { LapTracker } from '../gameplay/LapTracker.js';
 import { AIController } from '../gameplay/AIController.js';
+import { gridPose } from '../gameplay/grid.js';
 import { ItemSystem } from '../gameplay/ItemSystem.js';
 import { Traffic } from '../gameplay/Traffic.js';
 import { LevelBuilder } from '../level/LevelBuilder.js';
 import { Track } from '../level/Track.js';
 import { getTrackDef, TRACK_DEFS, MAIN_TRACK_COUNT } from '../level/tracks.js';
+import { renderTrackThumbnails } from '../ui/trackThumbnail.js';
 import { Sky } from '../level/Sky.js';
 import { Scenery } from '../level/Scenery.js';
 import { AssetLoader } from '../level/AssetLoader.js';
@@ -154,6 +156,11 @@ export class Game {
         if (this.traffic) this.rebuildTraffic(); // swap box fallback -> GLB cars
         if (this.racers.length) { this.attachRiders(); this.applyKarts(); }
         else this.ensureRacers(); // show the full grid on the title screen
+        // Render real 3D previews for the menu cards (deferred so the title scene
+        // paints first). Skipped under test automation — the heavy second WebGL
+        // context is pathologically slow on the software renderer and would block
+        // the main thread / time tests out. Real browsers generate them fine.
+        if (!navigator.webdriver) setTimeout(() => this.generateThumbnails(), 80);
       })
       .catch((e) => console.error('Failed to load models:', e));
 
@@ -210,6 +217,22 @@ export class Game {
     this.scene.fog = new THREE.Fog(def.theme.fog ?? LEVEL.FOG_COLOR, LEVEL.FOG_NEAR, LEVEL.FOG_FAR);
     if (this.modelsLoaded) this.buildScenery();
     applyVertexSnapToScene(this.worldGroup, PS2.VERTEX_SNAP);
+  }
+
+  /** Render the real 3D track previews and hand them to the menu (resilient). */
+  generateThumbnails() {
+    if (!this.modelsLoaded) return;
+    try {
+      this.menu.setThumbnails(renderTrackThumbnails(TRACK_DEFS, {
+        models: this.models,
+        kartGltf: this.kartGltf,
+        capyGltf: this.capyGltf,
+        orangeGltf: this.orangeGltf,
+        rivalGltfs: this.rivalGltfs,
+      }));
+    } catch (e) {
+      console.warn('Track thumbnail render failed:', e);
+    }
   }
 
   /** Swap the box-fallback traffic for the real GLB cars once they've loaded. */
@@ -368,18 +391,7 @@ export class Game {
 
   /** A staggered start-grid pose (3 rows x 2 columns) behind the start line. */
   gridPose(i) {
-    const s = this.track.samples[0];
-    const row = Math.floor(i / 2);
-    const col = i % 2;
-    const back = AI.GRID_START_BACK + row * AI.GRID_ROW_GAP;
-    const lat = (col === 0 ? -1 : 1) * AI.GRID_LANE;
-    return {
-      position: {
-        x: s.pos.x - s.tan.x * back + s.normal.x * lat,
-        z: s.pos.z - s.tan.z * back + s.normal.z * lat,
-      },
-      heading: Math.atan2(-s.tan.x, -s.tan.z),
-    };
+    return gridPose(this.track, i);
   }
 
   /**

@@ -18,6 +18,7 @@ export class Menu {
     this.standingsEl = document.getElementById('standings');
     this.trackSelectEl = document.getElementById('track-select');
     this._winBeat = null;
+    this.thumbnails = null; // real 3D track previews (data URLs), set once models load
 
     // Match Game's initially-built track (?track=N, default 0).
     const startIdx = parseInt(new URLSearchParams(location.search).get('track'), 10) || 0;
@@ -60,11 +61,21 @@ export class Menu {
         : (best != null ? `⭐ Best ${formatTime(best)}` : 'Not raced yet');
       const diffClass = DIFF_CLASS[def.difficulty] || 'easy';
 
-      // Preview canvas (rendered top-down map of the track).
-      const canvas = document.createElement('canvas');
-      canvas.className = 'tprev';
-      canvas.width = 300;
-      canvas.height = 168;
+      // Preview: a real rendered 3D scene of the track once ready; until then a
+      // lightweight top-down map drawing as a placeholder.
+      const url = this.thumbnails && this.thumbnails[i];
+      let preview;
+      if (url) {
+        preview = document.createElement('img');
+        preview.className = 'tprev';
+        preview.src = url;
+        preview.alt = def.name;
+      } else {
+        preview = document.createElement('canvas');
+        preview.className = 'tprev';
+        preview.width = 300;
+        preview.height = 168;
+      }
 
       const body = document.createElement('div');
       body.className = 'tbody';
@@ -75,7 +86,7 @@ export class Menu {
         `</div>` +
         `<div class="tinfo">${info}</div>`;
 
-      tile.appendChild(canvas);
+      tile.appendChild(preview);
       if (def.bonus) {
         const ribbon = document.createElement('div');
         ribbon.className = 'ribbon';
@@ -90,7 +101,7 @@ export class Menu {
         tile.appendChild(veil);
       }
 
-      drawTrackPreview(canvas, def);
+      if (!url) drawTrackPreview(preview, def); // 2D placeholder until the 3D shot is ready
 
       if (unlocked) {
         tile.addEventListener('click', () => {
@@ -108,6 +119,12 @@ export class Menu {
   updatePlayLabel() {
     const def = TRACK_DEFS[this.selected];
     if (def && this.playBtn) this.playBtn.textContent = `▶  RACE · ${def.name}`;
+  }
+
+  /** Swap the placeholder previews for real rendered 3D track shots. */
+  setThumbnails(urls) {
+    this.thumbnails = urls;
+    this.buildTracks();
   }
 
   showStart() {

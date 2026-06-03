@@ -82,4 +82,7 @@ if (import.meta.env.DEV) {
     calls: game.renderer.info.render.calls,
     triangles: game.renderer.info.render.triangles,
   });
+
+  // Test hook: force the (otherwise webdriver-skipped) 3D menu previews.
+  window.__renderThumbnails = () => game.generateThumbnails();
 }

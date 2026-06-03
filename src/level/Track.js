@@ -301,7 +301,7 @@ export class Track {
     // Everything placed in world space (no group rotation) to avoid surprises.
     const s = this.samples[0];
     const postMat = new THREE.MeshLambertMaterial({ color: COLORS.GANTRY });
-    const bannerTex = makeBannerTexture("CAPPY'S COURSE");
+    const bannerTex = makeBannerTexture((this.def && this.def.name ? this.def.name : "Cappy's Course").toUpperCase());
     const beamMat = new THREE.MeshLambertMaterial({
       map: bannerTex, emissive: 0xffffff, emissiveMap: bannerTex, emissiveIntensity: 0.3,
     });
