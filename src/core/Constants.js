@@ -255,7 +255,7 @@ export const OBSTACLES = {
   // the trees/rocks you see near the track are real obstacles you can plow. The
   // boulder topples them; run wide and you smash a whole row.
   TREELINE: {
-    COUNT: 16,          // total props around the loop (split both sides)
+    COUNT: 26,          // total props around the loop (split both sides) — dense enough to read as solid
     OFFSET_MIN: 8.3,    // lateral world units off the centerline (road half is 8)
     OFFSET_MAX: 9.6,
     TREE_SCALE: [5, 7], // tree height range

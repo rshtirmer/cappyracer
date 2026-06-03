@@ -163,12 +163,17 @@ export class Scenery {
     }
   }
 
-  /** Scatter PSX Mega Pack props (barrels, crates, barricades) near the track. */
+  /**
+   * Scatter PSX Mega Pack props (barrels, crates, barricades) AROUND the track —
+   * pushed past the reachable lip (minDist >= 7, i.e. offset >= wallHalf + 7) so
+   * none sit at the track edge ghosting through you. The solid stuff at the edge
+   * is the smashable treeline (see buildTrackObstacles); these are backdrop.
+   */
   buildPSXProps() {
     const m = this.models;
-    if (m.barrel) this.placeInstances(m.barrel, 22, 1.0, 1.35, 0.5, 14, false);
-    if (m.crate) this.placeInstances(m.crate, 18, 0.6, 0.95, 0.5, 12, false);
-    if (m.barricade) this.placeInstances(m.barricade, 16, 0.85, 1.0, 0.5, 5, false);
+    if (m.barrel) this.placeInstances(m.barrel, 22, 1.0, 1.35, 7, 16, false);
+    if (m.crate) this.placeInstances(m.crate, 18, 0.6, 0.95, 7, 15, false);
+    if (m.barricade) this.placeInstances(m.barricade, 16, 0.85, 1.0, 7, 14, false);
   }
 
   scatterPoint(minDist, maxDist) {
@@ -182,14 +187,17 @@ export class Scenery {
     };
   }
 
+  // Decorative trees/rocks start well past the reachable lip (minDist 8 -> offset
+  // >= wallHalf + 8) so none hug the track edge as ghost obstacles. The solid,
+  // smashable props at the edge come from buildTrackObstacles (the treeline).
   buildTrees() {
     const half = Math.floor(ENV.TREE_COUNT / 2);
-    this.placeInstances(this.models.tree1, half, ENV.TREE_MIN_H, ENV.TREE_MAX_H, 6, 75, false);
-    this.placeInstances(this.models.tree2, ENV.TREE_COUNT - half, ENV.TREE_MIN_H, ENV.TREE_MAX_H, 6, 75, false);
+    this.placeInstances(this.models.tree1, half, ENV.TREE_MIN_H, ENV.TREE_MAX_H, 8, 75, false);
+    this.placeInstances(this.models.tree2, ENV.TREE_COUNT - half, ENV.TREE_MIN_H, ENV.TREE_MAX_H, 8, 75, false);
   }
 
   buildRocks() {
-    this.placeInstances(this.models.rock, ENV.ROCK_COUNT, ENV.ROCK_MIN_H, ENV.ROCK_MAX_H, 2, 62, true);
+    this.placeInstances(this.models.rock, ENV.ROCK_COUNT, ENV.ROCK_MIN_H, ENV.ROCK_MAX_H, 8, 62, true);
   }
 
   // --- Space env -------------------------------------------------------------
@@ -302,7 +310,7 @@ export class Scenery {
     const rimRocks = [];
 
     for (let i = 0; i < ENV.HOTSPRING_COUNT; i++) {
-      const { x, z } = this.scatterPoint(8, 45);
+      const { x, z } = this.scatterPoint(10, 45);
       const r = 3 + this.rng() * 2.5;
 
       const water = new THREE.Mesh(new THREE.CircleGeometry(r, 24), waterMat);
