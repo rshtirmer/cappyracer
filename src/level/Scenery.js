@@ -80,28 +80,51 @@ export class Scenery {
   buildTrackObstacles() {
     this.obstacles = [];
     if (!this.track.pointAt) return;
-    for (const def of OBSTACLES.SPRINGS) {
-      const gltf = this.models[def.model];
-      if (!gltf) continue;
-      const s = this.track.pointAt(def.progress);
-      let nx = s.tan.z, nz = -s.tan.x;               // lateral normal in XZ
-      const nl = Math.hypot(nx, nz) || 1; nx /= nl; nz /= nl;
-      const x = s.pos.x + nx * def.offset;
-      const z = s.pos.z + nz * def.offset;
 
-      const group = new THREE.Group();
-      for (const part of bakeUnitParts(gltf)) {       // unit-height baked parts
-        const mesh = new THREE.Mesh(part.geometry, part.material);
-        mesh.castShadow = true; mesh.receiveShadow = true;
-        mesh.userData.sharedMaterial = true;          // material borrowed from the gltf
-        group.add(mesh);
-      }
-      group.scale.setScalar(def.scale ?? 1.6);
-      group.position.set(x, 0, z);
-      group.rotation.y = this.rng() * Math.PI * 2;
-      this.scene.add(group);
-      this.obstacles.push({ x, z, r: def.r ?? 0.7, group, baseY: 0, baseQuat: group.quaternion.clone(), toppled: false, t: 0, axis: null });
+    // On-track hazards (barrels/crates near the racing line).
+    for (const def of OBSTACLES.SPRINGS) {
+      this.placeObstacle(def.model, def.progress, def.offset, def.scale ?? 1.6, def.r ?? 0.7);
     }
+
+    // Solid, smashable treeline lining both shoulders just off the road.
+    const tl = OBSTACLES.TREELINE;
+    for (let i = 0; i < tl.COUNT; i++) {
+      const progress = (i + 0.5) / tl.COUNT;
+      const side = i % 2 === 0 ? 1 : -1;
+      const offset = side * (tl.OFFSET_MIN + this.rng() * (tl.OFFSET_MAX - tl.OFFSET_MIN));
+      if (i % tl.ROCK_EVERY === 0) {
+        const sc = tl.ROCK_SCALE[0] + this.rng() * (tl.ROCK_SCALE[1] - tl.ROCK_SCALE[0]);
+        this.placeObstacle('rock', progress, offset, sc, tl.ROCK_R * sc);
+      } else {
+        const model = this.rng() < 0.5 ? 'tree1' : 'tree2';
+        const sc = tl.TREE_SCALE[0] + this.rng() * (tl.TREE_SCALE[1] - tl.TREE_SCALE[0]);
+        this.placeObstacle(model, progress, offset, sc, tl.TREE_R * sc);
+      }
+    }
+  }
+
+  /** Build one smashable prop at a track progress + lateral offset; record its collider. */
+  placeObstacle(modelKey, progress, offset, scale, r) {
+    const gltf = this.models[modelKey];
+    if (!gltf) return;
+    const s = this.track.pointAt(progress);
+    let nx = s.tan.z, nz = -s.tan.x;                  // lateral normal in XZ
+    const nl = Math.hypot(nx, nz) || 1; nx /= nl; nz /= nl;
+    const x = s.pos.x + nx * offset;
+    const z = s.pos.z + nz * offset;
+
+    const group = new THREE.Group();
+    for (const part of bakeUnitParts(gltf)) {          // unit-height baked parts
+      const mesh = new THREE.Mesh(part.geometry, part.material);
+      mesh.castShadow = true; mesh.receiveShadow = true;
+      mesh.userData.sharedMaterial = true;             // material borrowed from the gltf
+      group.add(mesh);
+    }
+    group.scale.setScalar(scale);
+    group.position.set(x, 0, z);
+    group.rotation.y = this.rng() * Math.PI * 2;
+    this.scene.add(group);
+    this.obstacles.push({ x, z, r, group, baseY: 0, baseQuat: group.quaternion.clone(), toppled: false, t: 0, axis: null });
   }
 
   /** Knock a smashed obstacle over in the impact direction (fx,fz). */

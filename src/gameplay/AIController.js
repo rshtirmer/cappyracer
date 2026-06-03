@@ -56,7 +56,8 @@ export class AIController {
       const dist = Math.hypot(dx, dz);
       if (dist > AI.AVOID_RANGE || dist < 0.1) continue;
       if ((dx * fx + dz * fz) / dist < 0.5) continue;       // only dodge what's ahead
-      const lateral = -dx * fz + dz * fx;                   // >0 = prop is to the right
+      const lateral = -dx * fz + dz * fx;                   // signed sideways offset
+      if (Math.abs(lateral) > AI.AVOID_LATERAL) continue;   // ignore props off to the side (shoulder treeline)
       const strength = AI.AVOID_GAIN * (1 - dist / AI.AVOID_RANGE);
       push += (lateral > 0 ? -1 : 1) * strength;            // steer away from it
     }

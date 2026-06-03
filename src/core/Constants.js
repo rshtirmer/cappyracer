@@ -240,19 +240,30 @@ export const OBSTACLES = {
   BONK_FLOW_LOSS: 0.4, // flow lost if you hit one too slow to plow
   BONK_SPEED_KEEP: 0.5,// speed retained on a slow bonk
   RIVAL_SPEED_KEEP: 0.6,// a rival that clips one just slows (no spin — they mostly dodge anyway)
-  // model = scenery GLB key; scale = world height; r = collision radius (tight to the
-  // visible base, NOT a tree's canopy). Trees + rocks line the shoulders; barrels/crates
-  // sit closer in. The boulder smashes them all; the far decorative scatter stays cosmetic.
+  // On-track hazards (barrels/crates near the racing line). model = scenery GLB
+  // key; scale = world height; r = collision radius (tight to the visible base).
   SPRINGS: [
-    { progress: 0.13, offset: 6.4,  model: 'tree1',  scale: 5.5, r: 0.7 },
-    { progress: 0.22, offset: -4.5, model: 'barrel', scale: 1.6, r: 0.55 },
-    { progress: 0.34, offset: 5.6,  model: 'rock',   scale: 2.2, r: 1.0 },
-    { progress: 0.46, offset: -3.6, model: 'crate',  scale: 1.5, r: 0.7 },
-    { progress: 0.58, offset: 4.6,  model: 'barrel', scale: 1.6, r: 0.55 },
-    { progress: 0.68, offset: -6.4, model: 'tree2',  scale: 6.0, r: 0.7 },
-    { progress: 0.80, offset: 5.2,  model: 'rock',   scale: 2.0, r: 0.95 },
+    { progress: 0.16, offset: 4.5,  model: 'barrel', scale: 1.6, r: 0.55 },
+    { progress: 0.30, offset: -5.0, model: 'crate',  scale: 1.5, r: 0.7 },
+    { progress: 0.46, offset: 3.6,  model: 'barrel', scale: 1.6, r: 0.55 },
+    { progress: 0.61, offset: -4.6, model: 'crate',  scale: 1.5, r: 0.7 },
+    { progress: 0.78, offset: 4.8,  model: 'barrel', scale: 1.6, r: 0.55 },
     { progress: 0.90, offset: -4.0, model: 'crate',  scale: 1.5, r: 0.7 },
   ],
+  // A SOLID, SMASHABLE TREELINE lining both shoulders just off the road (offset
+  // ~9, inside the wall at 10). Generated around the loop, alternating sides, so
+  // the trees/rocks you see near the track are real obstacles you can plow. The
+  // boulder topples them; run wide and you smash a whole row.
+  TREELINE: {
+    COUNT: 16,          // total props around the loop (split both sides)
+    OFFSET_MIN: 8.3,    // lateral world units off the centerline (road half is 8)
+    OFFSET_MAX: 9.6,
+    TREE_SCALE: [5, 7], // tree height range
+    ROCK_SCALE: [1.8, 2.6],
+    ROCK_EVERY: 3,      // every Nth prop is a rock instead of a tree
+    TREE_R: 0.13,       // collision radius as a fraction of scale (thin trunk)
+    ROCK_R: 0.5,        // rock radius fraction (chunky)
+  },
 };
 
 // --- Items / power-ups -------------------------------------------------------
@@ -296,6 +307,7 @@ export const AI = {
   WIPEOUT_COOLDOWN: 16, // long: a given rival wipes out at most ~once a lap (decouples from wall-scrape spam)
   WIPEOUT_SPIN: 1.1,    // crash spin-out duration
   AVOID_RANGE: 15,      // start steering around a track prop within this distance ahead
+  AVOID_LATERAL: 2.6,   // ...but only if it's roughly in their path (ignores the shoulder treeline)
   AVOID_GAIN: 1.3,      // how hard they swerve to dodge a prop
   LANES: [-4.5, 4.5, -2, 2, 0],          // preferred lateral lane per AI
   SKILL: [0.98, 0.95, 0.93, 0.99, 0.91], // top-speed fraction per AI
