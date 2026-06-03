@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
-import { KART, COLORS, ITEMS, DRIFT, CALM } from '../core/Constants.js';
+import { KART, COLORS, ITEMS, DRIFT, FLOW, BUMP } from '../core/Constants.js';
 import { disposeObject3D, markShared } from '../core/disposeUtils.js';
 import { eventBus, Events } from '../core/EventBus.js';
 
@@ -28,8 +28,10 @@ export class Kart {
     this.driftDir = 0;              // -1 / +1 : the locked slide direction
     this.driftCharge = 0;           // seconds held in a clean drift
     this.padCooldown = 0;           // boost-pad re-trigger cooldown
-    this.calm = CALM.START;         // 0..1 serenity — scales top speed (the inversion)
-    this._stressedT = 0;            // >0 = recently stressed, recovery paused
+    this.flow = 0;                  // 0..1 chill-streak/momentum — drags top speed up (the inversion)
+    this.usesFlow = false;          // only the player snowballs; rivals run flat-fast
+    this.airVY = 0;                 // vertical velocity while launched (plowed rivals pop up)
+    this.launched = false;          // true mid-air after the boulder plows this kart
     this.isPlayerKart = false;      // set true for the human's kart (gates SFX)
 
     this.mesh = this.buildMesh();
@@ -63,16 +65,28 @@ export class Kart {
       if (this.speed > 0) this.speed = Math.max(0, this.speed - KART.DRAG * delta);
       else if (this.speed < 0) this.speed = Math.min(0, this.speed + KART.DRAG * delta);
     }
-    // Serenity recovers when you're not being rattled (calm = fast). Stressors
-    // set _stressedT to pause recovery briefly so the dip reads as a real hit.
-    if (this._stressedT > 0) this._stressedT -= delta;
-    else this.calm = Math.min(1, this.calm + CALM.RECOVER * delta);
+    // THE INVERSION (player only): flow builds while you roll clean + unbothered
+    // and bleeds when you panic. Braking or bogging off-track kills it; a smooth
+    // (or drifting) line at speed builds it. Less frantic input = more speed.
+    if (this.usesFlow) {
+      if (throttle < 0 && this.speed > 0.1) {
+        this.flow = Math.max(0, this.flow - FLOW.BRAKE_BLEED * delta);   // panic stop
+      } else if (this.surfaceGrip < 1) {
+        this.flow = Math.max(0, this.flow - FLOW.OFFROAD_BLEED * delta); // off the line
+      } else if (this.speed > FLOW.MIN_ROLL) {
+        // Drifting is a clean slide (no steer penalty); frantic steering slows the build.
+        const steerPen = this.drifting ? 1 : 1 - FLOW.STEER_PENALTY * Math.min(1, Math.abs(steer));
+        this.flow = Math.min(1, this.flow + FLOW.BUILD * Math.max(0, steerPen) * delta);
+      }
+    }
 
-    // THE INVERSION: top speed is gated by calm. A fully zen capybara hits full
-    // MAX_SPEED (and edges out the panicking AI); a stressed one is floored.
-    // Surface grip + boosts still stack on top.
+    // Top speed: the player's climbs from a crawl (BASE) to a boulder (BOULDER)
+    // with flow; rivals run a flat cap (re-capped by skill in AIController).
+    const topBase = this.usesFlow
+      ? FLOW.BASE_SPEED + (FLOW.BOULDER_SPEED - FLOW.BASE_SPEED) * this.flow
+      : KART.MAX_SPEED;
     const boost = this.boostTimer > 0 ? this.boostMult : 1;
-    const maxFwd = KART.MAX_SPEED * this.surfaceGrip * boost * this.calm;
+    const maxFwd = topBase * this.surfaceGrip * boost;
     const maxRev = KART.MAX_REVERSE * this.surfaceGrip;
     this.speed = Math.max(-maxRev, Math.min(maxFwd, this.speed));
     if (this.boostTimer > 0) this.boostTimer -= delta;
@@ -102,7 +116,9 @@ export class Kart {
       this.driftCharge += delta;
       this.speed *= Math.pow(DRIFT.GRIP_KEEP, delta);
     } else {
-      this.heading -= steer * KART.TURN_RATE * speedFactor * Math.sign(this.speed) * delta;
+      // A high-flow boulder turns heavier — commit to your line or drift the apex.
+      const heavy = 1 - FLOW.HEAVY_STEER * this.flow;
+      this.heading -= steer * KART.TURN_RATE * speedFactor * Math.sign(this.speed) * heavy * delta;
     }
 
     // Translate along heading. heading 0 faces -Z (matches mesh.rotation.y=0).
@@ -307,7 +323,15 @@ export class Kart {
     this.speed *= Math.pow(0.15, delta);
     this.mesh.position.x += -Math.sin(this.heading) * this.speed * delta;
     this.mesh.position.z += -Math.cos(this.heading) * this.speed * delta;
-    this.mesh.rotation.set(0, this.heading, 0);
+    if (this.launched || this.airVY !== 0 || this.mesh.position.y > 0) {
+      // Airborne after a plow: arc up under gravity + tumble end-over-end.
+      this.mesh.position.y += this.airVY * delta;
+      this.airVY -= BUMP.GRAVITY * delta;
+      if (this.mesh.position.y <= 0) { this.mesh.position.y = 0; this.airVY = 0; this.launched = false; }
+      this.mesh.rotation.set(this._t * 7, this.heading, this._t * 5);
+    } else {
+      this.mesh.rotation.set(0, this.heading, 0);
+    }
     this._t += delta;
     const spin = (this.speed * delta) / 0.42;
     for (const w of this.wheels) w.rotation.x += spin;
@@ -334,21 +358,30 @@ export class Kart {
     this.driftCharge = 0;
   }
 
-  /** Spike the heart rate: drain calm (floored at MIN) + pause recovery. */
-  stress(amount) {
-    this.calm = Math.max(CALM.MIN, this.calm - amount);
-    this._stressedT = CALM.RECOVER_DELAY;
-  }
+  /** Surge the chill streak (hot-spring soak). */
+  addFlow(amount) { this.flow = Math.min(1, this.flow + amount); }
 
-  /** Soak it in: restore calm toward fully zen (hot-spring soak / melon). */
-  soothe(amount) {
-    this.calm = Math.min(1, this.calm + amount);
-  }
+  /** Knock a chunk off the streak (wall bonk, shrugged-off item hit). */
+  loseFlow(amount) { this.flow = Math.max(0, this.flow - amount); }
 
-  /** Knock this kart into a spin-out for `time` seconds. */
+  /**
+   * Knock this kart into a spin-out for `time` seconds. The boulder (player) is
+   * unbothered — it shrugs off the hit and only loses a little flow instead.
+   */
   spinOut(time) {
+    if (this.usesFlow) { this.loseFlow(FLOW.HIT_LOSS); return; }
     this.spinTimer = Math.max(this.spinTimer, time);
     this.speed *= 0.35;
+  }
+
+  /** Plowed by the boulder: launch into the air, tumble, and spin out. */
+  launch(dirx, dirz) {
+    this.launched = true;
+    this.airVY = BUMP.LAUNCH_VY;
+    this.spinTimer = Math.max(this.spinTimer, BUMP.LAUNCH_SPIN);
+    this.speed *= 0.3;
+    this.mesh.position.x += dirx * BUMP.LAUNCH_PUSH;
+    this.mesh.position.z += dirz * BUMP.LAUNCH_PUSH;
   }
 
   /** Unit forward vector in world space. */
@@ -366,8 +399,9 @@ export class Kart {
     this.driftDir = 0;
     this.driftCharge = 0;
     this.padCooldown = 0;
-    this.calm = CALM.START;
-    this._stressedT = 0;
+    this.flow = 0;
+    this.airVY = 0;
+    this.launched = false;
     this.mesh.position.set(KART.START_X, KART.START_Y, KART.START_Z);
     this.mesh.rotation.set(0, this.heading, 0);
   }

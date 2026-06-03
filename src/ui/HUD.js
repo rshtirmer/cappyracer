@@ -66,22 +66,31 @@ export class HUD {
       pos +
       `<div style="font-size:26px">LAP ${lap}/${total}${offTrack}</div>` +
       `<div style="font-size:22px;opacity:0.9">${formatTime(state.raceTime)}</div>` +
-      this.calmBar(state.calm == null ? 1 : state.calm) +
+      this.flowBar(state.flow == null ? 0 : state.flow) +
       item;
   }
 
-  /** Serenity meter: full + cyan when zen (fast), shrinking + red when rattled. */
-  calmBar(calm) {
-    const pct = Math.round(calm * 100);
-    // cyan-calm (#49d6ff) -> amber -> red as serenity drops.
-    const color = calm > 0.66 ? '#49d6ff' : calm > 0.45 ? '#ffd54a' : '#ff3b5c';
-    const heart = calm > 0.66 ? '😌' : calm > 0.45 ? '😬' : '😱';
+  /**
+   * Momentum/chill-streak gauge. Fills + escalates as you snowball: a calm teal
+   * crawl -> hot gold boulder. The tier word is the hype ("UNSTOPPABLE" / "BOULDER").
+   */
+  flowBar(flow) {
+    const pct = Math.round(flow * 100);
+    const tiers = [
+      [0.95, 'BOULDER',      '#fff0a0', '🌀'],
+      [0.7,  'UNSTOPPABLE',  '#ff8c1a', '😎'],
+      [0.35, 'ROLLING',      '#7be0a0', '🙂'],
+      [0.0,  'CHILL',        '#49d6ff', '😌'],
+    ];
+    const [, label, color, face] = tiers.find(([t]) => flow >= t);
+    const glow = flow > 0.9 ? `0 0 16px ${color},0 0 4px #fff` : `0 0 8px ${color}`;
     return (
-      `<div style="margin-top:8px;font-size:13px;letter-spacing:2px;opacity:.85">${heart} CALM</div>` +
-      `<div style="width:170px;height:12px;border-radius:7px;background:rgba(0,0,0,.35);` +
+      `<div style="margin-top:8px;font-size:14px;letter-spacing:2px;font-weight:700;color:${color}">` +
+      `${face} ${label}</div>` +
+      `<div style="width:180px;height:13px;border-radius:7px;background:rgba(0,0,0,.35);` +
       `box-shadow:inset 0 0 0 1px rgba(255,255,255,.25);overflow:hidden;margin-top:2px">` +
       `<div style="width:${pct}%;height:100%;background:${color};` +
-      `box-shadow:0 0 8px ${color};transition:width .12s linear,background .2s"></div></div>`
+      `box-shadow:${glow};transition:width .1s linear,background .25s"></div></div>`
     );
   }
 }

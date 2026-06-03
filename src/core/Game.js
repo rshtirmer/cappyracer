@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GAME, CAMERA, COLORS, TRACK, RACE, KART, FX, MODELS, RIVAL_ROSTER, PS2, BLOOM, AI, LEVEL, STRESSOR } from './Constants.js';
+import { GAME, CAMERA, COLORS, TRACK, RACE, KART, FX, MODELS, RIVAL_ROSTER, PS2, BLOOM, AI, LEVEL, FLOW, BUMP } from './Constants.js';
 import { Save } from './Save.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
@@ -15,7 +15,6 @@ import { LapTracker } from '../gameplay/LapTracker.js';
 import { AIController } from '../gameplay/AIController.js';
 import { gridPose } from '../gameplay/grid.js';
 import { ItemSystem } from '../gameplay/ItemSystem.js';
-import { Stressors } from '../gameplay/Stressors.js';
 import { Traffic } from '../gameplay/Traffic.js';
 import { LevelBuilder } from '../level/LevelBuilder.js';
 import { Track } from '../level/Track.js';
@@ -210,10 +209,6 @@ export class Game {
     // Free-cruise has no power-ups; cup tracks do.
     this.items = new ItemSystem(this.worldGroup, this.track, { enabled: !def.endless });
     if (this.orangeGltf) this.items.setYuzu(this.orangeGltf);
-    // Stressors (calm-drain hazards). Prototype: only the easy track is dressed.
-    this.stressors = (!def.endless && def.id === 'springs')
-      ? new Stressors(this.worldGroup, this.track, this.particles, STRESSOR.SPRINGS)
-      : null;
     this.sky = new Sky(this.worldGroup, theme);
     // Highway "no-hesi" traffic to weave through; `cruise` enables near-miss scoring.
     this.traffic = def.env === 'highway'
@@ -267,7 +262,6 @@ export class Game {
     this.worldGroup = null;
     this.scenery = null;
     this.traffic = null;
-    this.stressors = null;
   }
 
   /** Switch to track `index` in place (rebuild the world, re-grid the field). */
@@ -380,7 +374,6 @@ export class Game {
       r.heldItem = null;
     });
     this.items.reset();
-    if (this.stressors) this.stressors.reset();
     this.snapCameraToKart();
     this.hud.show();
     this.hud.setCountdown(String(RACE.COUNTDOWN));
@@ -434,6 +427,7 @@ export class Game {
     }
     this.player = this.racers[0].kart;
     this.player.isPlayerKart = true; // gates player-only SFX (boost whoosh, etc.)
+    this.player.usesFlow = true;     // only the player snowballs (the boulder)
   }
 
   /** Swap a kart onto the shared kart GLB (no-op until it's loaded). */
@@ -557,7 +551,6 @@ export class Game {
     const player = this.racers[0];
     if (this.input.consumeUse() && player.heldItem) this.items.useItem(player, this.racers);
     this.items.update(delta, this.racers);
-    if (this.stressors) this.stressors.update(delta, this.racers);
     gameState.heldItem = player.heldItem;
     // The head orange IS the throwable yuzu — show it only while holding one.
     this.player.setHeldVisual(player.heldItem === 'shell');
@@ -620,6 +613,7 @@ export class Game {
       kart.mesh.position.x -= s.normal.x * excess;
       kart.mesh.position.z -= s.normal.z * excess;
       kart.speed *= TRACK.WALL_SPEED_KEEP;
+      if (racer.isPlayer) kart.loseFlow(FLOW.WALL_LOSS); // a bonk breaks your serene roll
     }
 
     const onTrack = Math.abs(loc.offset) <= this.track.roadHalf;
@@ -645,7 +639,7 @@ export class Game {
       gameState.speed = kart.speed;          // engine-pitch source for audio
       gameState.drifting = kart.drifting;     // drift-charge whine source
       gameState.driftCharge = kart.driftCharge;
-      gameState.calm = kart.calm;             // serenity meter (HUD bar + heartbeat)
+      gameState.flow = kart.flow;             // momentum/chill-streak meter (HUD gauge)
       if (completed && !racer.finished) {
         eventBus.emit(Events.LAP_COMPLETED, { lap: racer.lapTracker.lap, total: this.laps });
       }
@@ -653,33 +647,52 @@ export class Game {
   }
 
   /**
-   * Separate overlapping karts (circle-circle). A bump bleeds speed in PROPORTION
-   * to how deep the overlap is — a graze barely slows you, a hard hit slows more —
-   * plus a tiny extra separation push so two karts riding side-by-side knock apart
-   * cleanly instead of velcro-sticking and draining speed every frame.
+   * Separate overlapping karts (circle-circle). Rival-vs-rival: a gentle,
+   * depth-scaled bleed + tiny separation pop (clean knock-apart, no velcro).
+   * Player-vs-rival: the player is the IMMOVABLE BOULDER — the rival gets shoved
+   * fully clear and LAUNCHED into the air with a spin-out, while the boulder
+   * keeps ~all its speed and rolls on, unbothered. This is the money shot.
    */
   resolveCollisions() {
     const r = AI.COLLIDE_DIST;
     const n = this.racers.length;
     for (let i = 0; i < n; i++) {
       for (let j = i + 1; j < n; j++) {
-        const a = this.racers[i].kart.mesh.position;
-        const b = this.racers[j].kart.mesh.position;
+        const ra = this.racers[i];
+        const rb = this.racers[j];
+        const a = ra.kart.mesh.position;
+        const b = rb.kart.mesh.position;
         let dx = b.x - a.x;
         let dz = b.z - a.z;
         const d2 = dx * dx + dz * dz;
         if (d2 >= r * r) continue;
         let d = Math.sqrt(d2);
         if (d < 1e-4) { dx = 0.1; dz = 0; d = 0.1; }
-        const depth = (r - d) / r;                 // 0 (grazing) .. 1 (concentric)
-        const push = (r - d) / 2 + AI.COLLIDE_BIAS; // fully separate + small pop
         const nx = dx / d;
         const nz = dz / d;
+
+        if (ra.isPlayer || rb.isPlayer) {
+          // The boulder plows the rival. `sign` points from player -> rival.
+          const player = ra.isPlayer ? ra : rb;
+          const rival = ra.isPlayer ? rb : ra;
+          const sign = ra.isPlayer ? 1 : -1; // (nx,nz) is a->b; orient away from the player
+          rival.kart.launch(nx * sign, nz * sign);
+          player.kart.speed *= BUMP.PLAYER_KEEP; // immovable: barely slows
+          // Shove only the rival clear so the boulder never gets nudged off-line.
+          const push = (r - d) + AI.COLLIDE_BIAS;
+          rival.kart.mesh.position.x += nx * sign * push;
+          rival.kart.mesh.position.z += nz * sign * push;
+          eventBus.emit(Events.ITEM_HIT, { type: 'plow', isPlayer: false });
+          continue;
+        }
+
+        const depth = (r - d) / r;                 // 0 (grazing) .. 1 (concentric)
+        const push = (r - d) / 2 + AI.COLLIDE_BIAS; // fully separate + small pop
         a.x -= nx * push; a.z -= nz * push;
         b.x += nx * push; b.z += nz * push;
         const bleed = 1 - AI.COLLIDE_BLEED * depth; // gentle, depth-scaled
-        this.racers[i].kart.speed *= bleed;
-        this.racers[j].kart.speed *= bleed;
+        ra.kart.speed *= bleed;
+        rb.kart.speed *= bleed;
       }
     }
   }
@@ -808,8 +821,9 @@ export class Game {
     );
     this.camera.lookAt(this._lookTarget);
 
-    // Speed-based FOV widening for a sense of velocity.
-    const targetFov = FX.FOV_BASE + FX.FOV_MAX_ADD * Math.min(1, Math.max(0, this.player.speed) / KART.MAX_SPEED);
+    // Speed-based FOV widening for a sense of velocity — scaled across the full
+    // snowball range so the world keeps opening up as you build toward boulder.
+    const targetFov = FX.FOV_BASE + FX.FOV_MAX_ADD * Math.min(1, Math.max(0, this.player.speed) / FLOW.BOULDER_SPEED);
     const fovT = 1 - Math.exp(-FX.FOV_LERP * delta);
     this.camera.fov += (targetFov - this.camera.fov) * fovT;
     this.camera.updateProjectionMatrix();
@@ -859,7 +873,7 @@ export class Game {
       offset: +gameState.offset.toFixed(2),
       raceTime: +gameState.raceTime.toFixed(2),
       speed: k ? +k.speed.toFixed(3) : 0,
-      calm: k ? +k.calm.toFixed(3) : 1,
+      flow: k ? +k.flow.toFixed(3) : 0,
       heading: k ? +k.heading.toFixed(3) : 0,
       drift: k ? { active: k.drifting, charge: +k.driftCharge.toFixed(3) } : null,
       boost: k ? +k.boostTimer.toFixed(3) : 0,

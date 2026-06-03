@@ -124,10 +124,6 @@ export const COLORS = {
   MUD: 0x6b4a2b,
   MELON: 0x4caf50,
   BOOST_PAD: 0x49d6ff,
-  // Stressors (heart-rate spikers)
-  STRESS_ZONE: 0xff3b5c,   // danger ring on the ground
-  FIREWORK: 0xffd54a,      // firework sparks
-  CHIHUAHUA: 0xe8d8b0,     // little yappy dog
 };
 
 export const LEVEL = {
@@ -188,33 +184,42 @@ export const BOOST_PAD = {
   COOLDOWN: 2,
 };
 
-// --- Calm = speed (the inversion) --------------------------------------------
-// The capybara goes faster the more relaxed it stays. `calm` is a 0..1 meter
-// that scales the player's top speed (see Kart.update). Stressors drain it;
-// serenity (and hot-spring soaks) restore it. A floor keeps you cruising even
-// when rattled so you never fully stall.
-export const CALM = {
-  START: 1.0,        // calm at the line — fully zen
-  MIN: 0.4,          // floor: even max-stress keeps 40% top speed (never a crawl)
-  RECOVER: 0.16,     // calm regained per second of serenity (~3.75s 0.4->1.0)
-  RECOVER_DELAY: 0.5,// seconds after the last stress before recovery kicks in
-  SOAK: 0.5,         // calm restored per second while soaking a hot spring (boost pad)
-  // Speed maps linearly from calm: at calm=1 you get full MAX_SPEED, at calm=MIN
-  // you're floored. (maxFwd *= calm — see Kart.js.)
+// --- Flow / momentum: the snowball inversion ---------------------------------
+// "The slowest animal alive is impossible to stop." The capybara starts SLOW
+// and has no meaningful top-speed cap — instead a `flow` meter (0..1) builds the
+// longer it rolls clean and UNBOTHERED, dragging its top speed up from a crawl
+// to a runaway boulder. The whole skill is *not panicking*: braking, frantic
+// swerving, walls and off-track bogging bleed flow; a smooth (or drifting) line
+// builds it. Less input = more speed. Only the player rides flow (see usesFlow).
+export const FLOW = {
+  BASE_SPEED: 20,     // flow 0 — slower than the rivals; you start dead last
+  BOULDER_SPEED: 52,  // flow 1 — a runaway boulder, far past the panicking field
+  BUILD: 0.05,        // flow/sec on a clean unbroken roll (~20s crawl -> boulder)
+  MIN_ROLL: 8,        // must be rolling at least this fast for flow to build
+  STEER_PENALTY: 0.75,// sharp (non-drift) steering slows the build — frantic = not chill
+  BRAKE_BLEED: 1.3,   // flow/sec lost while braking (a panic stop kills your roll)
+  OFFROAD_BLEED: 0.7, // flow/sec lost off the racing line
+  WALL_LOSS: 0.45,    // flow lost in one hit on a wall bonk
+  HIT_LOSS: 0.25,     // flow nicked when an item clips you (you shrug it off, but it stings)
+  HEAVY_STEER: 0.45,  // normal turn-rate reduction at full flow (the boulder commits to its line)
+  PAD_BUMP: 0.18,     // flow surge from soaking a hot-spring boost pad
+  TIERS: [            // [min flow, label] — escalating HUD callout
+    [0.0,  'CHILL'],
+    [0.35, 'ROLLING'],
+    [0.7,  'UNSTOPPABLE'],
+    [0.95, 'BOULDER'],
+  ],
 };
 
-// --- Stressors (the new hazard content) --------------------------------------
-// Trigger volumes on the track that spike your heart rate (drain calm) while
-// you're inside them. Same proximity pattern as boost pads, opposite effect.
-// `type` picks the visual; `progress` is where it sits on the loop.
-export const STRESSOR = {
-  RADIUS: 6,         // how close before it rattles you
-  DRAIN: 0.55,       // calm drained per second while inside the radius
-  // Per-track placement. Only the easy track is dressed for the prototype.
-  SPRINGS: [
-    { type: 'firework', progress: 0.40 },
-    { type: 'chihuahua', progress: 0.70 },
-  ],
+// --- Bump: the immovable boulder plows fragile rivals ------------------------
+// When the player contacts a rival, the rival gets launched + spun while the
+// player barely slows. This is the money shot — bodies flying, capy unbothered.
+export const BUMP = {
+  LAUNCH_VY: 11,      // upward pop velocity on a plow
+  GRAVITY: 30,        // pulls a launched rival back down
+  LAUNCH_PUSH: 1.4,   // extra separation shove away from the boulder
+  LAUNCH_SPIN: 1.7,   // spin-out time for a plowed rival
+  PLAYER_KEEP: 0.99,  // player retains ~all speed on contact (immovable)
 };
 
 // --- Items / power-ups -------------------------------------------------------

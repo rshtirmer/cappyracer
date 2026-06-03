@@ -25,7 +25,7 @@ class GameState {
     this.speed = 0;        // player kart speed (world units/sec)
     this.drifting = false; // player is power-sliding
     this.driftCharge = 0;  // seconds held in the current clean drift
-    this.calm = 1;         // 0..1 serenity meter — gates the player's top speed (HUD + audio read this)
+    this.flow = 0;         // 0..1 momentum/chill streak — drags the player's top speed up (HUD reads this)
 
     // Highway free-cruise (endless no-hesi score attack).
     this.endless = false;  // current track is the free-cruise highway
