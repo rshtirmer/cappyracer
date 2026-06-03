@@ -96,11 +96,11 @@ export class Scenery {
         mesh.userData.sharedMaterial = true;          // material borrowed from the gltf
         group.add(mesh);
       }
-      group.scale.setScalar(1.7);
+      group.scale.setScalar(def.scale ?? 1.6);
       group.position.set(x, 0, z);
       group.rotation.y = this.rng() * Math.PI * 2;
       this.scene.add(group);
-      this.obstacles.push({ x, z, group, baseY: 0, baseQuat: group.quaternion.clone(), toppled: false, t: 0, axis: null });
+      this.obstacles.push({ x, z, r: def.r ?? 0.7, group, baseY: 0, baseQuat: group.quaternion.clone(), toppled: false, t: 0, axis: null });
     }
   }
 

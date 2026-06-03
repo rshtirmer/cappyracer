@@ -234,20 +234,24 @@ export const BUMP = {
 // chaos the player serenely rolls past. `progress`/`offset` place each on the
 // loop (offset = lateral world units from the centerline; |offset| < road half).
 export const OBSTACLES = {
-  R: 1.5,             // collision radius
-  HIT_PAD: 1.2,       // + kart radius for the contact test
+  HIT_PAD: 0.8,       // kart radius added to each prop's own radius for the contact test
   TOPPLE_TIME: 0.55,  // seconds for a smashed prop to fall over
   PLOW_FLOW_LOSS: 0.07,// flow nicked when the boulder smashes through
   BONK_FLOW_LOSS: 0.4, // flow lost if you hit one too slow to plow
   BONK_SPEED_KEEP: 0.5,// speed retained on a slow bonk
   RIVAL_SPEED_KEEP: 0.6,// a rival that clips one just slows (no spin — they mostly dodge anyway)
+  // model = scenery GLB key; scale = world height; r = collision radius (tight to the
+  // visible base, NOT a tree's canopy). Trees + rocks line the shoulders; barrels/crates
+  // sit closer in. The boulder smashes them all; the far decorative scatter stays cosmetic.
   SPRINGS: [
-    { progress: 0.16, offset: 4.5,  model: 'barrel' },
-    { progress: 0.30, offset: -5.0, model: 'crate' },
-    { progress: 0.46, offset: 3.5,  model: 'barrel' },
-    { progress: 0.61, offset: -4.0, model: 'crate' },
-    { progress: 0.78, offset: 5.0,  model: 'barrel' },
-    { progress: 0.90, offset: -3.5, model: 'barrel' },
+    { progress: 0.13, offset: 6.4,  model: 'tree1',  scale: 5.5, r: 0.7 },
+    { progress: 0.22, offset: -4.5, model: 'barrel', scale: 1.6, r: 0.55 },
+    { progress: 0.34, offset: 5.6,  model: 'rock',   scale: 2.2, r: 1.0 },
+    { progress: 0.46, offset: -3.6, model: 'crate',  scale: 1.5, r: 0.7 },
+    { progress: 0.58, offset: 4.6,  model: 'barrel', scale: 1.6, r: 0.55 },
+    { progress: 0.68, offset: -6.4, model: 'tree2',  scale: 6.0, r: 0.7 },
+    { progress: 0.80, offset: 5.2,  model: 'rock',   scale: 2.0, r: 0.95 },
+    { progress: 0.90, offset: -4.0, model: 'crate',  scale: 1.5, r: 0.7 },
   ],
 };
 

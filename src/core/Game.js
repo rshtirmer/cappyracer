@@ -724,9 +724,9 @@ export class Game {
   collideObstacles() {
     const sc = this.scenery;
     if (!sc || !sc.obstacles) return;
-    const reach = OBSTACLES.R + OBSTACLES.HIT_PAD;
     for (const ob of sc.obstacles) {
       if (ob.toppled) continue;
+      const reach = ob.r + OBSTACLES.HIT_PAD; // tight to each prop's own radius
       for (const racer of this.racers) {
         const k = racer.kart;
         if (k.spinTimer > 0) continue;
