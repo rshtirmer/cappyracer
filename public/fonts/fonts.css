@@ -6,12 +6,12 @@
   font-style: normal;
   font-weight: 600 800;
   font-display: swap;
-  src: url('/fonts/baloo-2.woff2') format('woff2');
+  src: url('baloo-2.woff2') format('woff2');
 }
 @font-face {
   font-family: 'Quicksand';
   font-style: normal;
   font-weight: 500 700;
   font-display: swap;
-  src: url('/fonts/quicksand.woff2') format('woff2');
+  src: url('quicksand.woff2') format('woff2');
 }
