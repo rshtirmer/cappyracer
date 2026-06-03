@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>CappyRacer 🐹🏁</title>
+  <!-- Self-hosted fonts (no external CDN dependency) -->
+  <link rel="preload" href="/cappyracer/fonts/baloo-2.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="/cappyracer/fonts/quicksand.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="stylesheet" href="/cappyracer/fonts/fonts.css" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --gold: #ffd54a;
+      --ink: #1c1330;
+      --panel: rgba(24, 16, 40, 0.62);
+    }
+    body { background: #000; overflow: hidden; font-family: 'Quicksand', system-ui, sans-serif; }
+    canvas { display: block; }
+
+    #hud {
+      position: fixed; top: 20px; left: 20px;
+      color: #fff; font-size: 24px;
+      font-family: 'Quicksand', monospace;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+      z-index: 10; pointer-events: none;
+    }
+
+    /* ---- Overlays ---------------------------------------------------------- */
+    .overlay {
+      position: fixed; inset: 0;
+      display: flex; flex-direction: column;
+      justify-content: center; align-items: center;
+      z-index: 20; color: #fff;
+      padding: 24px; overflow: auto;
+      background:
+        radial-gradient(120% 90% at 50% 8%, rgba(255,170,90,0.10), transparent 55%),
+        linear-gradient(180deg, rgba(8,4,18,0.55) 0%, rgba(8,4,18,0.82) 100%);
+      backdrop-filter: blur(2px);
+    }
+    .overlay.hidden { display: none; }
+
+    /* ---- Main menu --------------------------------------------------------- */
+    #menu-overlay { justify-content: flex-start; }
+    .menu-panel {
+      width: min(960px, 96vw);
+      margin: auto;
+      background: var(--panel);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 22px;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.08);
+      padding: 28px 30px 30px;
+      text-align: center;
+    }
+    .brand {
+      font-family: 'Baloo 2', cursive;
+      font-weight: 800;
+      font-size: clamp(34px, 6vw, 62px);
+      line-height: 1.22;
+      padding-top: 6px;
+      letter-spacing: 1px;
+      background: linear-gradient(180deg, #fff 0%, #ffd9a3 55%, #ff9e5e 100%);
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 4px 0 rgba(0,0,0,0.35));
+    }
+    .tagline { margin-top: 6px; font-size: 15px; color: #d8cff0; opacity: 0.9; }
+
+    .controls {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      justify-content: center; margin: 16px 0 6px;
+    }
+    .controls .pill {
+      font-size: 12.5px; font-weight: 600;
+      padding: 5px 11px; border-radius: 999px;
+      background: rgba(255,255,255,0.10);
+      border: 1px solid rgba(255,255,255,0.12);
+      color: #efe9ff;
+    }
+    .controls .pill b { color: var(--gold); }
+
+    .section-label {
+      margin: 18px 0 4px; font-size: 13px; letter-spacing: 2px;
+      text-transform: uppercase; color: #b9aede; font-weight: 700;
+    }
+
+    /* ---- Track cards ------------------------------------------------------- */
+    #track-select {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 14px; margin: 12px 0 8px;
+    }
+    .track-tile {
+      position: relative; overflow: hidden;
+      border-radius: 14px; cursor: pointer;
+      background: rgba(255,255,255,0.06);
+      border: 2px solid rgba(255,255,255,0.10);
+      box-shadow: 0 8px 22px rgba(0,0,0,0.35);
+      transition: transform .14s ease, border-color .14s, box-shadow .14s;
+      text-align: left;
+    }
+    .track-tile:hover {
+      transform: translateY(-4px);
+      border-color: rgba(255,255,255,0.30);
+      box-shadow: 0 14px 30px rgba(0,0,0,0.45);
+    }
+    .track-tile.selected {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 2px rgba(255,213,74,0.5), 0 16px 34px rgba(0,0,0,0.5);
+    }
+    .track-tile .tprev {
+      display: block; width: 100%; height: auto;
+      aspect-ratio: 300 / 168; background: #0b0a14;
+      object-fit: cover;
+    }
+    .track-tile .tbody { padding: 9px 11px 11px; }
+    .track-tile .trow {
+      display: flex; align-items: center; justify-content: space-between; gap: 6px;
+    }
+    .track-tile .tname { font-size: 14.5px; font-weight: 700; color: #fff; }
+    .track-tile .tinfo { font-size: 12px; margin-top: 4px; color: #cfc6ea; }
+
+    .badge {
+      font-size: 10.5px; font-weight: 700; letter-spacing: .5px;
+      padding: 3px 8px; border-radius: 999px; white-space: nowrap;
+      text-transform: uppercase; color: #1c1330;
+    }
+    .badge.easy   { background: #7ed957; }
+    .badge.hard   { background: #ff9e5e; }
+    .badge.expert { background: #ff5d6c; color: #fff; }
+    .badge.bonus  { background: var(--gold); }
+    .badge.cruise { background: #4fd1ff; color: #06283a; }
+
+    /* Locked state */
+    .track-tile.locked { cursor: not-allowed; }
+    .track-tile.locked .tprev { filter: grayscale(0.85) brightness(0.5); }
+    .track-tile.locked:hover { transform: none; border-color: rgba(255,255,255,0.10); }
+    .lock-veil {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 40px; background: rgba(6,4,16,0.42);
+      text-shadow: 0 3px 10px rgba(0,0,0,0.6);
+    }
+
+    /* Bonus ribbon */
+    .track-tile.bonus { border-color: rgba(255,213,74,0.5); }
+    .ribbon {
+      position: absolute; top: 11px; right: -34px;
+      transform: rotate(45deg);
+      background: linear-gradient(180deg, #ffe27a, #f4b400);
+      color: #1c1330; font-weight: 800; font-size: 11px; letter-spacing: 1px;
+      padding: 3px 40px; box-shadow: 0 2px 6px rgba(0,0,0,0.4); z-index: 2;
+    }
+
+    /* ---- Buttons ----------------------------------------------------------- */
+    .overlay button {
+      margin-top: 22px;
+      padding: 14px 44px;
+      font-size: 19px; font-family: 'Quicksand', sans-serif; font-weight: 700;
+      letter-spacing: .5px; color: var(--ink);
+      background: linear-gradient(180deg, #ffe27a 0%, var(--gold) 60%, #f4b400 100%);
+      border: none; border-radius: 999px; cursor: pointer;
+      box-shadow: 0 10px 24px rgba(244,180,0,0.35), inset 0 1px 0 rgba(255,255,255,0.6);
+      transition: transform .12s ease, box-shadow .12s, filter .12s;
+    }
+    .overlay button:hover { transform: translateY(-2px); filter: brightness(1.05); box-shadow: 0 14px 30px rgba(244,180,0,0.5); }
+    .overlay button:active { transform: translateY(0); }
+
+    .overlay h1 { font-family: 'Baloo 2', cursive; font-size: 46px; margin-bottom: 14px; }
+    .overlay .score-display { font-size: 26px; margin: 8px 0; }
+
+    /* ---- Finish overlay panel --------------------------------------------- */
+    #gameover-overlay .menu-panel { max-width: 520px; }
+    .finish-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+    /* Full finishing-order standings */
+    #standings {
+      margin: 16px auto 4px; max-width: 380px;
+      display: flex; flex-direction: column; gap: 4px;
+      text-align: left;
+    }
+    .standing-row {
+      display: grid; grid-template-columns: 34px 1fr auto;
+      align-items: center; gap: 8px;
+      padding: 7px 12px; border-radius: 10px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.07);
+      font-size: 14.5px; color: #e7e0fb;
+    }
+    .standing-row .st-pos { font-weight: 800; color: #cfc6ea; text-align: center; }
+    .standing-row .st-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .standing-row .st-name b { color: var(--gold); font-weight: 800; }
+    .standing-row .st-time { font-variant-numeric: tabular-nums; opacity: 0.85; font-size: 13px; }
+    .standing-row.me {
+      background: linear-gradient(90deg, rgba(255,213,74,0.22), rgba(255,213,74,0.08));
+      border-color: rgba(255,213,74,0.55);
+      color: #fff; box-shadow: 0 0 0 1px rgba(255,213,74,0.25);
+    }
+    #continue-btn {
+      background: linear-gradient(180deg, #b9f6ca 0%, #69d98a 60%, #2fae5e 100%);
+      color: #07301a;
+    }
+
+    /* ---- Cinematic / cutscene overlay ------------------------------------- */
+    #cutscene-overlay {
+      position: fixed; inset: 0; z-index: 40;
+      display: none; cursor: pointer; color: #fff;
+      font-family: 'Quicksand', sans-serif;
+    }
+    #cutscene-overlay.show { display: block; }
+    #cutscene-overlay .bar {
+      position: fixed; left: 0; right: 0; height: 11vh; background: #000;
+      transition: height .25s ease;
+    }
+    #cutscene-overlay .bar-top { top: 0; }
+    #cutscene-overlay .bar-bottom { bottom: 0; }
+    #cutscene-overlay.finale .bar { height: 14vh; }
+
+    #cutscene-skip {
+      position: fixed; top: calc(11vh + 14px); right: 22px; z-index: 41;
+      padding: 7px 16px; font-family: 'Quicksand', sans-serif; font-weight: 700;
+      font-size: 13px; letter-spacing: .5px; color: #fff; cursor: pointer;
+      background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.35);
+      border-radius: 999px; transition: background .15s;
+    }
+    #cutscene-skip:hover { background: rgba(0,0,0,0.7); }
+
+    #cutscene-box {
+      position: fixed; left: 50%; transform: translateX(-50%);
+      bottom: calc(11vh + 22px); width: min(820px, 90vw);
+      background: linear-gradient(180deg, rgba(20,12,36,0.72), rgba(12,8,24,0.82));
+      border: 1px solid rgba(255,255,255,0.16);
+      border-left: 4px solid var(--gold);
+      border-radius: 14px; padding: 16px 22px 18px;
+      box-shadow: 0 18px 50px rgba(0,0,0,0.6);
+    }
+    #cutscene-speaker {
+      font-family: 'Baloo 2', cursive; font-weight: 700; font-size: 19px;
+      color: var(--gold); margin-bottom: 4px;
+      text-shadow: 0 2px 6px rgba(0,0,0,0.5);
+    }
+    #cutscene-text {
+      font-size: 19px; line-height: 1.45; color: #f3eeff; min-height: 2.9em;
+      text-shadow: 0 2px 6px rgba(0,0,0,0.5);
+    }
+    #cutscene-hint {
+      margin-top: 8px; font-size: 12.5px; font-weight: 600;
+      color: #b9aede; text-align: right; min-height: 1em; opacity: 0.9;
+    }
+
+    /* ---- Countdown --------------------------------------------------------- */
+
+    /* ---- Countdown --------------------------------------------------------- */
+    #countdown {
+      position: fixed; inset: 0;
+      display: none; align-items: center; justify-content: center;
+      z-index: 30; pointer-events: none;
+      font-family: 'Baloo 2', 'Quicksand', sans-serif;
+      font-weight: 800; font-size: 22vh;
+      color: #fff8e8;
+      text-shadow: 0 0 24px rgba(255,160,80,0.9), 4px 6px 0 rgba(0,0,0,0.35);
+    }
+    #countdown.go { color: #8effa0; font-size: 18vh; text-shadow: 0 0 30px rgba(120,255,140,0.9), 4px 6px 0 rgba(0,0,0,0.35); }
+
+    /* ---- Fatal error boundary --------------------------------------------- */
+    #fatal-overlay {
+      position: fixed; inset: 0; z-index: 60; display: none;
+      flex-direction: column; align-items: center; justify-content: center;
+      text-align: center; padding: 28px; color: #fff;
+      background: linear-gradient(180deg, #1a0f24 0%, #0a0712 100%);
+      font-family: 'Quicksand', system-ui, sans-serif;
+    }
+    #fatal-overlay.show { display: flex; }
+    #fatal-overlay .emoji { font-size: 54px; margin-bottom: 12px; }
+    #fatal-overlay h2 { font-family: 'Baloo 2', cursive; font-size: 28px; margin-bottom: 10px; color: var(--gold); }
+    #fatal-overlay p { font-size: 15px; color: #cfc6ea; max-width: 460px; line-height: 1.5; }
+    #fatal-detail { font-size: 12px; opacity: 0.6; margin-top: 10px; font-family: monospace; }
+    #fatal-overlay button { margin-top: 22px; }
+
+    /* ---- Mute toggle ------------------------------------------------------- */
+    #mute-btn {
+      position: fixed; top: 16px; right: 16px; z-index: 50;
+      width: 42px; height: 42px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 19px; cursor: pointer; color: #fff;
+      background: rgba(20,12,36,0.55); border: 1px solid rgba(255,255,255,0.18);
+      backdrop-filter: blur(3px);
+      box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+      transition: background .15s, transform .12s;
+      user-select: none;
+    }
+    #mute-btn:hover { background: rgba(40,26,64,0.8); transform: translateY(-1px); }
+  </style>
+  <script type="module" crossorigin src="/cappyracer/assets/index-n0OTWS7a.js"></script>
+</head>
+<body>
+  <button id="mute-btn" title="Mute / unmute (M)">🔊</button>
+  <div id="hud"></div>
+  <div id="countdown"></div>
+
+  <div id="menu-overlay" class="overlay">
+    <div class="menu-panel">
+      <div class="brand">🐹 CAPPYRACER 🏁</div>
+      <div class="tagline">Drift the hot-spring circuits as a capybara. Master the line, pelt your rivals, win the Cup.</div>
+
+      <div class="controls">
+        <span class="pill">Steer <b>&larr; &rarr;</b></span>
+        <span class="pill">Gas <b>&uarr;</b></span>
+        <span class="pill">Brake <b>&darr;</b></span>
+        <span class="pill">Drift <b>Shift</b></span>
+        <span class="pill">Item <b>Space</b></span>
+      </div>
+
+      <div class="section-label">Choose your track</div>
+      <div id="track-select"></div>
+      <button id="play-btn">▶  RACE</button>
+    </div>
+  </div>
+
+  <div id="gameover-overlay" class="overlay hidden">
+    <div class="menu-panel">
+      <h1>🏁 FINISH!</h1>
+      <div class="score-display" id="final-score">Time: 0:00.00</div>
+      <div class="score-display" id="best-score" style="font-size:18px;color:#cfc6ea;">Best: 0:00.00</div>
+      <div id="standings"></div>
+      <div class="finish-actions">
+        <button id="continue-btn" style="display:none;">▶ Continue Story</button>
+        <button id="restart-btn">RACE AGAIN</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fatal error boundary (hard init failure, e.g. no WebGL) -->
+  <div id="fatal-overlay">
+    <div class="emoji">🐹💤</div>
+    <h2>The capybara couldn’t start the race</h2>
+    <p>Something went wrong loading the game. This usually means WebGL or hardware acceleration is unavailable in your browser.</p>
+    <div id="fatal-detail"></div>
+    <button onclick="location.reload()">Try again</button>
+  </div>
+
+  <!-- In-engine cinematic overlay (letterboxed dialogue over the 3D world) -->
+  <div id="cutscene-overlay">
+    <div class="bar bar-top"></div>
+    <div class="bar bar-bottom"></div>
+    <button id="cutscene-skip">Skip ▸</button>
+    <div id="cutscene-box">
+      <div id="cutscene-speaker"></div>
+      <div id="cutscene-text"></div>
+      <div id="cutscene-hint"></div>
+    </div>
+  </div>
+
+</body>
+</html>
