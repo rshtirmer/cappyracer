@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="x-ogp-key" content="204a1e07-46a8-4e27-8c83-68333eab94dc" id="ogp-key-meta" />
   <title>CappyRacer 🐹🏁</title>
   <!-- Self-hosted fonts (no external CDN dependency) -->
   <link rel="preload" href="/cappyracer/fonts/baloo-2.woff2" as="font" type="font/woff2" crossorigin />
@@ -277,6 +278,54 @@
     #fatal-detail { font-size: 12px; opacity: 0.6; margin-top: 10px; font-family: monospace; }
     #fatal-overlay button { margin-top: 22px; }
 
+    /* ---- First-load screen ------------------------------------------------- */
+    /* pointer-events:none so it is purely visual and never intercepts input
+       (Playwright clicks PLAY before models finish; a real user can't aim at a
+       button they can't see, and the sub-1MB payload clears this in <1s). */
+    #loading-overlay {
+      position: fixed; inset: 0; z-index: 70;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      pointer-events: none; color: #fff; text-align: center; padding: 24px;
+      background:
+        radial-gradient(120% 90% at 50% 30%, rgba(255,170,90,0.16), transparent 60%),
+        linear-gradient(180deg, #1a0f24 0%, #0a0712 100%);
+      opacity: 1; transition: opacity .45s ease;
+    }
+    #loading-overlay.done { opacity: 0; }
+    #loading-overlay .load-emoji {
+      font-size: 60px; margin-bottom: 6px;
+      animation: cappy-bob 1.1s ease-in-out infinite;
+    }
+    @keyframes cappy-bob {
+      0%, 100% { transform: translateY(0) rotate(-3deg); }
+      50%      { transform: translateY(-10px) rotate(3deg); }
+    }
+    #loading-overlay .load-brand {
+      font-family: 'Baloo 2', cursive; font-weight: 800;
+      font-size: clamp(30px, 6vw, 52px); letter-spacing: 1px; line-height: 1.2;
+      background: linear-gradient(180deg, #fff 0%, #ffd9a3 55%, #ff9e5e 100%);
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 4px 0 rgba(0,0,0,0.35));
+    }
+    #loading-overlay .load-flavor {
+      margin-top: 6px; font-size: 14px; color: #d8cff0; opacity: 0.9;
+    }
+    #loading-track {
+      margin-top: 22px; width: min(320px, 72vw); height: 8px;
+      background: rgba(255,255,255,0.12); border-radius: 999px; overflow: hidden;
+      box-shadow: inset 0 1px 2px rgba(0,0,0,0.4);
+    }
+    #loading-bar {
+      height: 100%; width: 0%;
+      background: linear-gradient(90deg, #ffe27a, var(--gold), #ff9e5e);
+      border-radius: 999px; transition: width .25s ease;
+    }
+    #loading-pct {
+      margin-top: 9px; font-size: 12.5px; font-weight: 700; letter-spacing: 1px;
+      color: #b9aede; font-variant-numeric: tabular-nums;
+    }
+
     /* ---- Mute toggle ------------------------------------------------------- */
     #mute-btn {
       position: fixed; top: 16px; right: 16px; z-index: 50;
@@ -291,9 +340,18 @@
     }
     #mute-btn:hover { background: rgba(40,26,64,0.8); transform: translateY(-1px); }
   </style>
-  <script type="module" crossorigin src="/cappyracer/assets/index-n0OTWS7a.js"></script>
+  <script type="module" crossorigin src="/cappyracer/assets/index-DYVYbuXE.js"></script>
 </head>
 <body>
+  <!-- First-load screen (purely visual; fades out once core models are ready) -->
+  <div id="loading-overlay">
+    <div class="load-emoji">🐹</div>
+    <div class="load-brand">CAPPYRACER</div>
+    <div class="load-flavor">Warming up the hot springs…</div>
+    <div id="loading-track"><div id="loading-bar"></div></div>
+    <div id="loading-pct">0%</div>
+  </div>
+
   <button id="mute-btn" title="Mute / unmute (M)">🔊</button>
   <div id="hud"></div>
   <div id="countdown"></div>
